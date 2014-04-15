@@ -41,6 +41,11 @@ public class Bot {
 			}
 		}
 	}
+	
+	private SendMsg DetermineAction(){
+		//Figure out what to do
+		return new Throttle(0.6);
+	}
 
 	Bot(StreamReader reader, StreamWriter writer, Join join) {
 		this.writer = writer;
@@ -60,7 +65,7 @@ public class Bot {
 				case "carPositions":
 					CarPositions carPositions = JsonConvert.DeserializeObject<CarPositions>(line);
 					UpdateCarPositions(carPositions.data);
-					send(new Throttle(0.6));
+					send(DetermineAction());
 					break;
 				case "join":
 					Console.WriteLine("Joined");
