@@ -122,3 +122,35 @@ class Throttle: SendMsg {
 		return "throttle";
 	}
 }
+
+class SwitchLane: SendMsg {
+	public string lane;
+
+	public SwitchLane(string lane){
+		this.lane = lane;
+	}
+
+	protected override Object MsgData() {
+		return this.lane;
+	}
+
+	protected override string MsgType(){
+		return "switchLane";
+	}
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
