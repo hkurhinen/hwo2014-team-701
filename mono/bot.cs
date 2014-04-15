@@ -30,9 +30,13 @@ public class Bot {
 	
 	private void UpdateCarPositions(List<Car> newPositions){
 		foreach(Car newPosition in newPositions){
-			foreach(Car car in cars){
-				if(newPosition.EqualsWithCar(car)){
-					car.updateCarPosition(newPosition);
+			if(newPosition.EqualsWithCar(myCar)) {
+				myCar.updateCarPosition(newPosition);
+			} else {
+				foreach(Car car in cars){
+					if(newPosition.EqualsWithCar(car)){
+						car.updateCarPosition(newPosition);
+					}
 				}
 			}
 		}
@@ -47,6 +51,11 @@ public class Bot {
 		while((line = reader.ReadLine()) != null) {
 			MsgWrapper msg = JsonConvert.DeserializeObject<MsgWrapper>(line);
 			switch(msg.msgType) {
+				case "yourCar":
+					YourCar yourCar = JsonConvert.DeserializeObject<YourCar>(line);
+					myCar = new Car();
+					myCar.id = yourCar.data;
+				break;
 				case "carPositions":
 					CarPositions carPositions = JsonConvert.DeserializeObject<CarPositions>(line);
 					UpdateCarPositions(carPositions.data);
@@ -61,6 +70,11 @@ public class Bot {
 					GameInit gameInit = JsonConvert.DeserializeObject<GameInit>(line);
 					currentTrack = gameInit.data.race.track;
 					cars = gameInit.data.race.cars;
+					foreach(Car car in cars){
+						if(car.EqualsWithCar(myCar)){ //Remove 'mycar' from cars list
+							cars.Remove(car);
+						}
+					}
 					send(new Ping());
 					break;
 				case "gameEnd":
@@ -91,6 +105,11 @@ class MsgWrapper {
     	this.msgType = msgType;
     	this.data = data;
     }
+}
+/*******YOUR CAR***********/
+public class YourCar {
+	public string msgType { get; set; }
+	public Id data { get; set; }
 }
 
 /*******GAME INIT**********/
