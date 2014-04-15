@@ -55,6 +55,7 @@ public class Bot {
 					YourCar yourCar = JsonConvert.DeserializeObject<YourCar>(line);
 					myCar = new Car();
 					myCar.id = yourCar.data;
+					send(new Ping());
 				break;
 				case "carPositions":
 					CarPositions carPositions = JsonConvert.DeserializeObject<CarPositions>(line);
