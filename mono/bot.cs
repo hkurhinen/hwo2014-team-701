@@ -43,7 +43,15 @@ public class Bot {
 	}
 	
 	private SendMsg DetermineAction(){
-		return new Throttle(0.6);
+		if(currentTrack.GetNextPiece(myCar).angle == 0){ //If next piece is straight, full throttle
+			return new Throttle(1.0);
+		}else {
+			if(myCar.speed < 5){
+				return new Throttle(1.0);
+			}else{	
+				return new Throttle(0.1);
+			}
+		}
 	}
 
 	Bot(StreamReader reader, StreamWriter writer, Join join) {
@@ -64,6 +72,7 @@ public class Bot {
 				case "carPositions":
 					CarPositions carPositions = JsonConvert.DeserializeObject<CarPositions>(line);
 					UpdateCarPositions(carPositions.data);
+					Console.WriteLine("Current tick: "+carPositions.gameTick);
 					send(DetermineAction());
 					break;
 				case "join":
@@ -134,10 +143,16 @@ public class YourCar {
 /*******GAME INIT**********/
 public class Piece
 {
+	public Piece(){
+		this.@switch = false;
+		this.radius = 0;
+		this.angle = 0;
+	}
+	
     public double length { get; set; }
-    public bool? @switch { get; set; }
-    public int? radius { get; set; }
-    public double? angle { get; set; }
+    public bool @switch { get; set; }
+    public int radius { get; set; }
+    public double angle { get; set; }
 }
 
 public class Lane
@@ -165,6 +180,14 @@ public class Track
     public List<Piece> pieces { get; set; }
     public List<Lane> lanes { get; set; }
     public StartingPoint startingPoint { get; set; }
+	
+	public Piece GetNextPiece(Car car){
+		if(car.piecePosition.pieceIndex + 1 < pieces.Count){
+			return pieces[car.piecePosition.pieceIndex + 1];
+		} else {
+			return pieces[0];
+		}
+	}
 }
 
 public class Id
@@ -332,19 +355,3 @@ class SwitchLane: SendMsg {
 		return "switchLane";
 	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
