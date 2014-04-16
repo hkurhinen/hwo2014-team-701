@@ -31,11 +31,11 @@ public class Bot {
 	private void UpdateCarPositions(List<Car> newPositions){
 		foreach(Car newPosition in newPositions){
 			if(newPosition.EqualsWithCar(myCar)) {
-				myCar.updateCarPosition(newPosition);
+				myCar.updateCarPosition(newPosition, currentTrack);
 			} else {
 				foreach(Car car in otherCars.cars){
 					if(newPosition.EqualsWithCar(car)){
-						car.updateCarPosition(newPosition);
+						car.updateCarPosition(newPosition, currentTrack);
 					}
 				}
 			}
@@ -43,7 +43,6 @@ public class Bot {
 	}
 	
 	private SendMsg DetermineAction(){
-		//Figure out what to do
 		return new Throttle(0.6);
 	}
 
@@ -223,10 +222,15 @@ public class PiecePosition
 
 public class Car
 {
+	public Car(){
+		this.speed = 0.0;
+	}
+	
     public Id id { get; set; }
     public double angle { get; set; }
     public PiecePosition piecePosition { get; set; }
 	public Dimensions dimensions { get; set; }
+	public double speed { get; set; }
 	
 	public bool EqualsWithCar(Car car){
 		if(car.id.name == this.id.name && car.id.color == this.id.color){
@@ -235,7 +239,20 @@ public class Car
 		return false;
 	}
 	
-	public void updateCarPosition(Car car){
+	private void calculateSpeed(Car newspeed, Track currentTrack){
+		if(this.piecePosition != null){
+			if(this.piecePosition.pieceIndex == newspeed.piecePosition.pieceIndex){
+				this.speed = newspeed.piecePosition.inPieceDistance - this.piecePosition.inPieceDistance;
+			}else{
+				if(currentTrack.pieces[this.piecePosition.pieceIndex].length > 0){ //Previous piece length was known, otherwise just quess that speed hasn't changed.
+					this.speed = currentTrack.pieces[this.piecePosition.pieceIndex].length - this.piecePosition.inPieceDistance + newspeed.piecePosition.inPieceDistance;
+				}
+			}
+		}
+	}
+	
+	public void updateCarPosition(Car car, Track currentTrack){
+		calculateSpeed(car, currentTrack);
 		this.angle = car.angle;
 		this.piecePosition = car.piecePosition;
 	}
