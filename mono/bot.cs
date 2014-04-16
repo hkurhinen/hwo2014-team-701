@@ -46,11 +46,20 @@ public class Bot {
 		if(currentTrack.GetNextPiece(myCar).angle == 0){ //If next piece is straight, full throttle
 			return new Throttle(1.0);
 		}else {
-			if(myCar.speed < 5){
+			Piece nextPiece = currentTrack.GetNextPiece(myCar);
+			if((nextPiece.angle > 30 || nextPiece.angle < -30) && nextPiece.radius < 150){ //if we have tight curve ahead, slow down
+				if(myCar.speed < 6.5){
+					return new Throttle(1.0);
+				}else{
+					return new Throttle(0.1);
+				}
+			}
+			return new Throttle(1.0); //slow only to tight curves
+			/*if(myCar.speed < 7){
 				return new Throttle(1.0);
 			}else{	
 				return new Throttle(0.1);
-			}
+			}*/
 		}
 	}
 
@@ -77,6 +86,19 @@ public class Bot {
 					break;
 				case "join":
 					Console.WriteLine("Joined");
+					send(new Ping());
+					break;
+				case "crash":
+					CrashMsg crashMsg = JsonConvert.DeserializeObject<CrashMsg>(line);
+					if(myCar.HasId(crashMsg.data)){ //Houston we have crashed...
+						Console.WriteLine("CRASHED AT GAMETICK:"+crashMsg.gameTick);
+						Console.WriteLine("speed: "+myCar.speed);
+						Piece crashPiece = currentTrack.pieces[myCar.piecePosition.pieceIndex];
+						Console.WriteLine("crashpiece index: "+myCar.piecePosition.pieceIndex);
+						Console.WriteLine("crashpiece angle: "+crashPiece.angle);
+						Console.WriteLine("crashpiece radius: "+crashPiece.radius);
+						Console.WriteLine("crashpiece length: "+crashPiece.length);
+					}
 					send(new Ping());
 					break;
 				case "gameInit":
@@ -134,6 +156,16 @@ public class Cars {
 	}
 }
 
+
+/*******CRASH**************/
+public class CrashMsg
+{
+    public string msgType { get; set; }
+    public Id data { get; set; }
+    public string gameId { get; set; }
+    public int gameTick { get; set; }
+}
+ 
 /*******YOUR CAR***********/
 public class YourCar {
 	public string msgType { get; set; }
@@ -257,6 +289,12 @@ public class Car
 	
 	public bool EqualsWithCar(Car car){
 		if(car.id.name == this.id.name && car.id.color == this.id.color){
+			return true;
+		}
+		return false;
+	}
+	public bool HasId(Id id){
+		if(id.name == this.id.name && id.color == this.id.color){
 			return true;
 		}
 		return false;
