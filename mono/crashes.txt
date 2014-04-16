@@ -1,0 +1,7 @@
+CRASHED AT GAMETICK:570
+speed: 6.50053216497686
+crashpiece index: 6
+crashpiece angle: 45
+crashpiece radius: 100
+crashpiece length: 0
+END

@@ -81,10 +81,11 @@ public class Bot {
 		
 		if(currentTrack.GetNextPiece(myCar).angle == 0){ //If next piece is straight, full throttle
 			return new Throttle(1.0);
-		}else {
+		}
+		else {
 			Piece nextPiece = currentTrack.GetNextPiece(myCar);
 			if((nextPiece.angle > 30 || nextPiece.angle < -30) && nextPiece.radius < 150){ //if we have tight curve ahead, slow down
-				if(myCar.speed < 6.41){
+				if(myCar.speed < 6.41112){
 					return new Throttle(1.0);
 				}else{
 					return new Throttle(0.1);
@@ -129,6 +130,17 @@ public class Bot {
 						Console.WriteLine("crashpiece angle: "+crashPiece.angle);
 						Console.WriteLine("crashpiece radius: "+crashPiece.radius);
 						Console.WriteLine("crashpiece length: "+crashPiece.length);
+
+				       	using (System.IO.StreamWriter file = new System.IO.StreamWriter("./crashes.txt", true))
+        				{
+           					file.WriteLine("CRASHED AT GAMETICK:"+crashMsg.gameTick);
+							file.WriteLine("speed: "+myCar.speed);
+							file.WriteLine("crashpiece index: "+myCar.piecePosition.pieceIndex);
+							file.WriteLine("crashpiece angle: "+crashPiece.angle);
+							file.WriteLine("crashpiece radius: "+crashPiece.radius);
+							file.WriteLine("crashpiece length: "+crashPiece.length);
+							file.WriteLine("END");							
+        				}
 					}
 					send(new Ping());
 					break;
@@ -250,6 +262,13 @@ public class Track
 		} else {
 			return pieces[0];
 		}
+	}
+	public Piece GetNextPieceX(Car car, int forward)
+	{
+		if(pieces.Count > car.piecePosition.pieceIndex+forward)
+			return pieces[car.piecePosition.pieceIndex+forward];
+		else
+			return pieces[car.piecePosition.pieceIndex+forward - (pieces.Count)];
 	}
 }
 
