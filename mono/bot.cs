@@ -43,23 +43,39 @@ public class Bot {
 	}
 	
 	private SendMsg DetermineAction(){
+		if(myCar.piecePosition.pieceIndex > 5 && myCar.piecePosition.pieceIndex < 10 && myCar.piecePosition.lane.startLaneIndex == 0 && myCar.piecePosition.lane.endLaneIndex == 0){
+			if(currentTrack.GetNextPiece(myCar).@switch){
+				return new SwitchLane("Right");
+			}
+		}
+		if(myCar.piecePosition.pieceIndex > 10 && myCar.piecePosition.pieceIndex < 15 && myCar.piecePosition.lane.startLaneIndex == 1 && myCar.piecePosition.lane.endLaneIndex == 1){
+			if(currentTrack.GetNextPiece(myCar).@switch){
+				return new SwitchLane("Left");
+			}
+		}
+		if(myCar.piecePosition.pieceIndex > 22 && myCar.piecePosition.pieceIndex < 26 && myCar.piecePosition.lane.startLaneIndex == 0 && myCar.piecePosition.lane.endLaneIndex == 0){
+			if(currentTrack.GetNextPiece(myCar).@switch){
+				return new SwitchLane("Right");
+			}
+		}
+		if(myCar.piecePosition.pieceIndex > 26 && myCar.piecePosition.pieceIndex < 30 && myCar.piecePosition.lane.startLaneIndex == 1 && myCar.piecePosition.lane.endLaneIndex == 1){
+			if(currentTrack.GetNextPiece(myCar).@switch){
+				return new SwitchLane("Left");
+			}
+		}
+		
 		if(currentTrack.GetNextPiece(myCar).angle == 0){ //If next piece is straight, full throttle
 			return new Throttle(1.0);
 		}else {
 			Piece nextPiece = currentTrack.GetNextPiece(myCar);
 			if((nextPiece.angle > 30 || nextPiece.angle < -30) && nextPiece.radius < 150){ //if we have tight curve ahead, slow down
-				if(myCar.speed < 6.5){
+				if(myCar.speed < 6.51){
 					return new Throttle(1.0);
 				}else{
 					return new Throttle(0.1);
 				}
 			}
 			return new Throttle(1.0); //slow only to tight curves
-			/*if(myCar.speed < 7){
-				return new Throttle(1.0);
-			}else{	
-				return new Throttle(0.1);
-			}*/
 		}
 	}
 
@@ -81,7 +97,7 @@ public class Bot {
 				case "carPositions":
 					CarPositions carPositions = JsonConvert.DeserializeObject<CarPositions>(line);
 					UpdateCarPositions(carPositions.data);
-					Console.WriteLine("Current tick: "+carPositions.gameTick);
+					Console.WriteLine("Car startlaneindex:"+myCar.piecePosition.lane.startLaneIndex+" Car endlaneIndex:"+myCar.piecePosition.lane.endLaneIndex+" Current tick: "+carPositions.gameTick);
 					send(DetermineAction());
 					break;
 				case "join":
