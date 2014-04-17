@@ -42,6 +42,27 @@ public class Bot {
 		}
 	}
 	
+	private void GetTrackCorners(Track track){
+				
+	}
+	
+	private Track CreateTrack(GameInit gameinit){
+		List<Piece> trackpieces = new List<Piece>();
+		int index = 0;
+		foreach(Piece piece in gameinit.data.race.track.pieces){
+			Piece pieceWithIndex = piece;
+			piece.index = index;
+			trackpieces.Add(pieceWithIndex);
+		}
+		Track track = new Track();
+		track.id = gameinit.data.race.track.id;
+		track.lanes = gameinit.data.race.track.lanes;
+		track.name = gameinit.data.race.track.name;
+		track.pieces = trackpieces;
+		track.startingPoint = gameinit.data.race.track.startingPoint;
+		return track;
+	}
+	
 	private SendMsg DetermineAction(){
 		if(myCar.piecePosition.pieceIndex > 1 && myCar.piecePosition.pieceIndex < 4 && myCar.piecePosition.lane.startLaneIndex == 0 && myCar.piecePosition.lane.endLaneIndex == 0){
 			if(currentTrack.GetNextPiece(myCar).@switch){
@@ -53,31 +74,11 @@ public class Bot {
 				return new SwitchLane("Left");
 			}
 		}
-		/*if(myCar.piecePosition.pieceIndex > 10 && myCar.piecePosition.pieceIndex < 15 && myCar.piecePosition.lane.startLaneIndex == 1 && myCar.piecePosition.lane.endLaneIndex == 1){
-			if(currentTrack.GetNextPiece(myCar).@switch){
-				return new SwitchLane("Left");
-			}
-		}*/
 		if(myCar.piecePosition.pieceIndex > 15 && myCar.piecePosition.pieceIndex < 21 && myCar.piecePosition.lane.startLaneIndex == 0 && myCar.piecePosition.lane.endLaneIndex == 0){
 			if(currentTrack.GetNextPiece(myCar).@switch){
 				return new SwitchLane("Right");
 			}
 		}
-		/*if(myCar.piecePosition.pieceIndex > 22 && myCar.piecePosition.pieceIndex < 26 && myCar.piecePosition.lane.startLaneIndex == 0 && myCar.piecePosition.lane.endLaneIndex == 0){
-			if(currentTrack.GetNextPiece(myCar).@switch){
-				return new SwitchLane("Right");
-			}
-		}*/
-		/*if(myCar.piecePosition.pieceIndex > 26 && myCar.piecePosition.pieceIndex < 31 && myCar.piecePosition.lane.startLaneIndex == 1 && myCar.piecePosition.lane.endLaneIndex == 1){
-			if(currentTrack.GetNextPiece(myCar).@switch){
-				return new SwitchLane("Left");
-			}
-		}*/
-		/*if(myCar.piecePosition.pieceIndex > 32 && myCar.piecePosition.pieceIndex < 37 && myCar.piecePosition.lane.startLaneIndex == 1 && myCar.piecePosition.lane.endLaneIndex == 1){
-			if(currentTrack.GetNextPiece(myCar).@switch){
-				return new SwitchLane("Left");
-			}
-		}*/
 		
 		if(currentTrack.GetNextPiece(myCar).angle == 0){ //If next piece is straight, full throttle
 			return new Throttle(1.0);
@@ -147,7 +148,7 @@ public class Bot {
 				case "gameInit":
 					Console.WriteLine("Race init");
 					GameInit gameInit = JsonConvert.DeserializeObject<GameInit>(line);
-					currentTrack = gameInit.data.race.track;
+					currentTrack = CreateTrack(gameInit);
 					otherCars = new Cars(gameInit.data.race.cars);
 					otherCars.cars.Remove(otherCars.GetCarById(myCar.id));
 					send(new Ping());
@@ -180,6 +181,12 @@ class MsgWrapper {
     	this.msgType = msgType;
     	this.data = data;
     }
+}
+
+public class Corner {
+	public List<Piece> pieces { get; set; }
+	public double angle { get; set; }
+	public double radius { get; set; }
 }
 
 public class Cars {
@@ -228,6 +235,7 @@ public class Piece
     public bool @switch { get; set; }
     public int radius { get; set; }
     public double angle { get; set; }
+	public int index { get; set; }
 }
 
 public class Lane
