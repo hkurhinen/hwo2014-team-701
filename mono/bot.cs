@@ -27,6 +27,7 @@ public class Bot {
 	private Track currentTrack;
 	private Car myCar;
 	private Cars otherCars;
+	private List<Corner> trackCorners;
 	
 	private void UpdateCarPositions(List<Car> newPositions){
 		foreach(Car newPosition in newPositions){
@@ -42,8 +43,36 @@ public class Bot {
 		}
 	}
 	
-	private void GetTrackCorners(Track track){
-				
+	private List<Corner> GetTrackCorners(Track track){
+		List<Corner> corners = new List<Corner>();
+		for(int i =  0; i < track.pieces.Count;i++){
+			if(track.pieces[i].angle != 0){
+				Piece previousPiece = track.pieces[i];
+				Corner corner = new Corner();
+				double cornerangle = 0.0;
+				while((track.pieces[i].angle < 0 && previousPiece.angle < 0) || (track.pieces[i].angle > 0 && previousPiece.angle > 0)) {
+					corner.pieces.Add(track.pieces[i]);
+					cornerangle += track.pieces[i].angle;
+					previousPiece = track.pieces[i];
+					i++;
+				}
+				corner.angle = cornerangle;
+				double maxRad = corner.pieces[0].radius;
+				double minRad = corner.pieces[0].radius;
+				foreach(Piece cornerPiece in corner.pieces){
+					if(cornerPiece.radius > maxRad){
+						maxRad = cornerPiece.radius;
+					}
+					if(cornerPiece.radius < minRad){
+						minRad = cornerPiece.radius;
+					}
+				}
+				corner.maxRadius = maxRad;
+				corner.minRadius = minRad;
+				corners.Add(corner);
+			}
+		}
+		return corners;
 	}
 	
 	private Track CreateTrack(GameInit gameinit){
@@ -62,6 +91,8 @@ public class Bot {
 		track.startingPoint = gameinit.data.race.track.startingPoint;
 		return track;
 	}
+	
+	
 	
 	private SendMsg DetermineAction(){
 		if(myCar.piecePosition.pieceIndex > 1 && myCar.piecePosition.pieceIndex < 4 && myCar.piecePosition.lane.startLaneIndex == 0 && myCar.piecePosition.lane.endLaneIndex == 0){
@@ -151,6 +182,10 @@ public class Bot {
 					currentTrack = CreateTrack(gameInit);
 					otherCars = new Cars(gameInit.data.race.cars);
 					otherCars.cars.Remove(otherCars.GetCarById(myCar.id));
+					trackCorners = GetTrackCorners(currentTrack);
+					foreach(Corner corner in trackCorners){
+						Console.WriteLine(corner.angle);
+					}
 					send(new Ping());
 					break;
 				case "gameEnd":
@@ -184,9 +219,13 @@ class MsgWrapper {
 }
 
 public class Corner {
+	public Corner(){
+		pieces = new List<Piece>();
+	}
 	public List<Piece> pieces { get; set; }
 	public double angle { get; set; }
-	public double radius { get; set; }
+	public double minRadius { get; set; }
+	public double maxRadius { get; set; }
 }
 
 public class Cars {
