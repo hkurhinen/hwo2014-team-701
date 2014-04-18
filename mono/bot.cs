@@ -19,7 +19,7 @@ public class Bot {
 			StreamWriter writer = new StreamWriter(stream);
 			writer.AutoFlush = true;
 
-			new Bot(reader, writer, new Join(botName, botKey));
+			new Bot(reader, writer, new JoinRace(botName, botKey, "keimola"));
 		}
 	}
 
@@ -27,7 +27,12 @@ public class Bot {
 	private Track currentTrack;
 	private Car myCar;
 	private Cars otherCars;
-	private List<Corner> trackCorners;
+	private double limitSpeed = 3;
+	private double deceleration = 0;
+	private Corners trackCorners;
+	private double throttle = 0;
+	private double startSpeed;
+	private double startDist;
 	
 	private void UpdateCarPositions(List<Car> newPositions){
 		foreach(Car newPosition in newPositions){
@@ -43,7 +48,35 @@ public class Bot {
 		}
 	}
 	
-	private List<Corner> GetTrackCorners(Track track){
+	private SendMsg GetDeceleration(){
+		if(myCar.speed == 0){
+			throttle = 1;
+			return new Throttle(1.0);
+		} else {
+			if(throttle == 0){
+				double speedLowered = startSpeed - myCar.speed;
+				double distanceTraveled = myCar.piecePosition.inPieceDistance - startDist;
+				Console.WriteLine("Start speed: "+startSpeed);
+				Console.WriteLine("Current speed: "+myCar.speed);
+				Console.WriteLine("Start distance: "+startDist);
+				Console.WriteLine("Distance traveled: "+distanceTraveled);
+				Console.WriteLine("Speed lowered: "+speedLowered);
+				Console.WriteLine("End distance: "+myCar.piecePosition.inPieceDistance);
+				Console.WriteLine("End speed: "+myCar.speed);
+				deceleration = speedLowered / distanceTraveled;
+				return new Throttle(1.0);
+			}else{				
+				startSpeed = myCar.speed;
+				startDist = myCar.piecePosition.inPieceDistance;
+				throttle = 0;
+				return new Throttle(0);
+			}
+		}
+		
+	}
+	
+	
+	private Corners GetTrackCorners(Track track){
 		List<Corner> corners = new List<Corner>();
 		for(int i =  0; i < track.pieces.Count;i++){
 			if(track.pieces[i].angle != 0){
@@ -60,10 +93,10 @@ public class Bot {
 				double maxRad = corner.pieces[0].radius;
 				double minRad = corner.pieces[0].radius;
 				foreach(Piece cornerPiece in corner.pieces){
-					if(cornerPiece.radius > maxRad){
+					if(cornerPiece.radius > maxRad) {
 						maxRad = cornerPiece.radius;
 					}
-					if(cornerPiece.radius < minRad){
+					if(cornerPiece.radius < minRad) {
 						minRad = cornerPiece.radius;
 					}
 				}
@@ -72,7 +105,8 @@ public class Bot {
 				corners.Add(corner);
 			}
 		}
-		return corners;
+		
+		return new Corners(corners);
 	}
 	
 	private Track CreateTrack(GameInit gameinit){
@@ -82,6 +116,7 @@ public class Bot {
 			Piece pieceWithIndex = piece;
 			piece.index = index;
 			trackpieces.Add(pieceWithIndex);
+			index++;
 		}
 		Track track = new Track();
 		track.id = gameinit.data.race.track.id;
@@ -92,7 +127,23 @@ public class Bot {
 		return track;
 	}
 	
-	
+	private Double GetDistanceUntilPiece(Piece p){
+		double dist = 0;
+		if(myCar.piecePosition.pieceIndex < p.index){
+			for(int i = myCar.piecePosition.pieceIndex;i < p.index;i++){
+				dist += currentTrack.pieces[i].length;
+			}
+		
+		}else{
+			for(int i = myCar.piecePosition.pieceIndex; i < currentTrack.pieces.Count;i++){
+				dist += currentTrack.pieces[i].length;
+			}
+			for(int j = 0; j < p.index;j++){
+				dist += currentTrack.pieces[j].length;
+			}
+		}
+		return dist - myCar.piecePosition.inPieceDistance;
+	}	
 	
 	private SendMsg DetermineAction(){
 		if(myCar.piecePosition.pieceIndex > 1 && myCar.piecePosition.pieceIndex < 4 && myCar.piecePosition.lane.startLaneIndex == 0 && myCar.piecePosition.lane.endLaneIndex == 0){
@@ -111,23 +162,62 @@ public class Bot {
 			}
 		}
 		
-		if(currentTrack.GetNextPiece(myCar).angle == 0){ //If next piece is straight, full throttle
+		/*if(currentTrack.GetNextPiece(myCar).angle == 0){ //If next piece is straight, full throttle
 			return new Throttle(1.0);
 		}
 		else {
 			Piece nextPiece = currentTrack.GetNextPiece(myCar);
-			if((nextPiece.angle > 30 || nextPiece.angle < -30) && nextPiece.radius < 150){ //if we have tight curve ahead, slow down
-				if(myCar.speed < 6.41112){
-					return new Throttle(1.0);
-				}else{
+			Piece secondNextPiece = currentTrack.GetNextPieceX(myCar,2);
+			Piece thirdNextPiece = currentTrack.GetNextPieceX(myCar,3);
+			if((nextPiece.angle > 30 || nextPiece.angle < -30 || secondNextPiece.angle > 30 || secondNextPiece.angle < -30 || thirdNextPiece.angle > 30 || thirdNextPiece.angle < -30)){ //if we have tight curve ahead, slow down
+				Corner nextCorner = trackCorners.GetCornerByPiece(nextPiece);
+				if(myCar.speed < 1.0/*(limitSpeed / (nextCorner.angle / nextCorner.maxRadius))) {
+			/*		return new Throttle(1.0);
+				} else {
 					return new Throttle(0.1);
 				}
 			}
 			return new Throttle(1.0); //slow only to tight curves
+		}*/
+		
+		if(currentTrack.pieces[myCar.piecePosition.pieceIndex].angle != 0){
+			Corner currentCorner = trackCorners.GetCornerByPiece(currentTrack.pieces[myCar.piecePosition.pieceIndex]);
+			if(currentCorner == null){
+				Console.WriteLine("null");
+				return new Throttle(1.0);
+			}
+			Console.WriteLine(currentCorner.angle);
+			double pieceLimitSpeed = limitSpeed / (currentCorner.angle / currentCorner.minRadius);
+			if(pieceLimitSpeed < 0){
+				pieceLimitSpeed = -pieceLimitSpeed;
+			}
+			if(myCar.speed < pieceLimitSpeed){
+				return new Throttle(1.0);
+			}else{
+				return new Throttle(0.0);
+			}
+		
+		}else{		
+			Corner nextCorner = trackCorners.GetNextCorner(myCar);
+			double nextCornerLength = nextCorner.angle * Math.PI * nextCorner.minRadius;
+			double nextCornerEntrySpeed = limitSpeed / (nextCorner.angle / nextCorner.minRadius);
+			if(nextCornerEntrySpeed < 0){
+				nextCornerEntrySpeed = -nextCornerEntrySpeed;
+			}
+			
+			double speedAfterBreaking = myCar.speed - (GetDistanceUntilPiece(nextCorner.pieces[0]) * deceleration);
+			
+			if(speedAfterBreaking > nextCornerEntrySpeed){
+				return new Throttle(0.0);
+			}else{
+				return new Throttle(1.0);
+			}
 		}
+		
+		
 	}
 
-	Bot(StreamReader reader, StreamWriter writer, Join join) {
+	Bot(StreamReader reader, StreamWriter writer, JoinRace join) {
 		this.writer = writer;
 		string line;
 
@@ -146,7 +236,11 @@ public class Bot {
 					CarPositions carPositions = JsonConvert.DeserializeObject<CarPositions>(line);
 					UpdateCarPositions(carPositions.data);
 					Console.WriteLine("Car startlaneindex:"+myCar.piecePosition.lane.startLaneIndex+" Car endlaneIndex:"+myCar.piecePosition.lane.endLaneIndex+" Current tick: "+carPositions.gameTick);
-					send(DetermineAction());
+					if(deceleration == 0){
+						send(GetDeceleration());
+					}else{
+						send(DetermineAction());
+					}
 					break;
 				case "join":
 					Console.WriteLine("Joined");
@@ -183,9 +277,6 @@ public class Bot {
 					otherCars = new Cars(gameInit.data.race.cars);
 					otherCars.cars.Remove(otherCars.GetCarById(myCar.id));
 					trackCorners = GetTrackCorners(currentTrack);
-					foreach(Corner corner in trackCorners){
-						Console.WriteLine(corner.angle);
-					}
 					send(new Ping());
 					break;
 				case "gameEnd":
@@ -204,6 +295,7 @@ public class Bot {
 	}
 
 	private void send(SendMsg msg) {
+		//Console.WriteLine(msg.ToJson());
 		writer.WriteLine(msg.ToJson());
 	}
 }
@@ -218,6 +310,33 @@ class MsgWrapper {
     }
 }
 
+public class Corners {
+	
+	public Corners(List<Corner> corners){
+		this.corners = corners;
+	}
+	
+	List<Corner> corners { get; set; }
+
+	public Corner GetNextCorner(Car car){ //returns next corner or currentcorner if already in it.
+		int currentPieceIndex = car.piecePosition.pieceIndex;
+		foreach(Corner corner in corners){
+			if(corner.pieces[corner.pieces.Count - 1].index > currentPieceIndex){ 
+				return corner;
+			}
+		}
+		return corners[0];
+	}
+	public Corner GetCornerByPiece(Piece piece){
+		foreach(Corner corner in corners){
+			if(corner.ContainsPiece(piece)){
+				return corner;
+			}
+		}
+		return null;
+	}
+}
+
 public class Corner {
 	public Corner(){
 		pieces = new List<Piece>();
@@ -226,6 +345,15 @@ public class Corner {
 	public double angle { get; set; }
 	public double minRadius { get; set; }
 	public double maxRadius { get; set; }
+	
+	public bool ContainsPiece(Piece piece){
+		foreach(Piece p in pieces){
+			if(p.index == piece.index){
+				return true;
+			}
+		}
+		return false;
+	}
 }
 
 public class Cars {
@@ -316,6 +444,14 @@ public class Track
 			return pieces[car.piecePosition.pieceIndex+forward];
 		else
 			return pieces[car.piecePosition.pieceIndex+forward - (pieces.Count)];
+	}
+	public Piece GetPieceByIndex(int index){
+		foreach(Piece piece in pieces){
+			if(piece.index == index){
+				return piece;
+			}
+		}
+		return null;
 	}
 }
 
@@ -424,6 +560,17 @@ public class CarPositions
     public int gameTick { get; set; }
 }
 
+public class BotId
+{
+	public BotId(string name, string key){
+		this.name = name;
+		this.key = key;
+	}
+    public string name { get; set; }
+    public string key { get; set; }
+}
+
+
 /******* MESSAGES TO SERVER **********/
 
 abstract class SendMsg {
@@ -438,14 +585,12 @@ abstract class SendMsg {
 }
 
 class Join: SendMsg {
-	public string name;
-	public string key;
-	public string color;
+    public string name { get; set; }
+    public string key { get; set; }
 
 	public Join(string name, string key) {
 		this.name = name;
 		this.key = key;
-		this.color = "red";
 	}
 
 	protected override string MsgType() { 
@@ -456,6 +601,20 @@ class Join: SendMsg {
 class Ping: SendMsg {
 	protected override string MsgType() {
 		return "ping";
+	}
+}
+
+class JoinRace: SendMsg {
+	public BotId botId { get; set; }
+    public string trackName { get; set; }
+
+	public JoinRace(string name, string key, string trackName) {
+		this.botId = new BotId(name, key);
+		this.trackName = trackName;
+	}
+
+	protected override string MsgType() { 
+		return "joinRace";
 	}
 }
 
