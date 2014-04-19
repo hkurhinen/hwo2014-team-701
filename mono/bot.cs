@@ -19,7 +19,7 @@ public class Bot {
 			StreamWriter writer = new StreamWriter(stream);
 			writer.AutoFlush = true;
 
-			new Bot(reader, writer, new JoinRace(botName, botKey, "keimola"));
+			new Bot(reader, writer, new JoinRace(botName, botKey, "germany"));
 		}
 	}
 
@@ -27,7 +27,7 @@ public class Bot {
 	private Track currentTrack;
 	private Car myCar;
 	private Cars otherCars;
-	private double limitSpeed = 3;
+	private double limitSpeed = 12;
 	private double deceleration = 0;
 	private Corners trackCorners;
 	private double throttle = 0;
@@ -65,11 +65,15 @@ public class Bot {
 				Console.WriteLine("End speed: "+myCar.speed);
 				deceleration = speedLowered / distanceTraveled;
 				return new Throttle(1.0);
-			}else{				
-				startSpeed = myCar.speed;
-				startDist = myCar.piecePosition.inPieceDistance;
-				throttle = 0;
-				return new Throttle(0);
+			}else{
+				if(myCar.speed < 1){
+					return new Throttle(1);
+				}else{					
+					startSpeed = myCar.speed;
+					startDist = myCar.piecePosition.inPieceDistance;
+					throttle = 0;
+					return new Throttle(0);
+				}
 			}
 		}
 		
@@ -146,7 +150,7 @@ public class Bot {
 	}	
 	
 	private SendMsg DetermineAction(){
-		if(myCar.piecePosition.pieceIndex > 1 && myCar.piecePosition.pieceIndex < 4 && myCar.piecePosition.lane.startLaneIndex == 0 && myCar.piecePosition.lane.endLaneIndex == 0){
+		/*if(myCar.piecePosition.pieceIndex > 1 && myCar.piecePosition.pieceIndex < 4 && myCar.piecePosition.lane.startLaneIndex == 0 && myCar.piecePosition.lane.endLaneIndex == 0){
 			if(currentTrack.GetNextPiece(myCar).@switch){
 				return new SwitchLane("Right");
 			}
@@ -160,7 +164,7 @@ public class Bot {
 			if(currentTrack.GetNextPiece(myCar).@switch){
 				return new SwitchLane("Right");
 			}
-		}
+		}*/
 		
 		/*if(currentTrack.GetNextPiece(myCar).angle == 0){ //If next piece is straight, full throttle
 			return new Throttle(1.0);
@@ -199,14 +203,14 @@ public class Bot {
 		
 		}else{		
 			Corner nextCorner = trackCorners.GetNextCorner(myCar);
-			double nextCornerLength = nextCorner.angle * Math.PI * nextCorner.minRadius;
+			//double nextCornerLength = nextCorner.angle * Math.PI * nextCorner.minRadius;
 			double nextCornerEntrySpeed = limitSpeed / (nextCorner.angle / nextCorner.minRadius);
 			if(nextCornerEntrySpeed < 0){
 				nextCornerEntrySpeed = -nextCornerEntrySpeed;
 			}
 			
 			double speedAfterBreaking = myCar.speed - (GetDistanceUntilPiece(nextCorner.pieces[0]) * deceleration);
-			
+			Console.WriteLine(speedAfterBreaking);
 			if(speedAfterBreaking > nextCornerEntrySpeed){
 				return new Throttle(0.0);
 			}else{
