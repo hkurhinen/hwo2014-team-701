@@ -19,7 +19,7 @@ public class Bot {
 			StreamWriter writer = new StreamWriter(stream);
 			writer.AutoFlush = true;
 
-			new Bot(reader, writer, new JoinRace(botName, botKey, "germany"));
+			new Bot(reader, writer, new JoinRace(botName, botKey, "keimola"));
 		}
 	}
 
@@ -27,12 +27,13 @@ public class Bot {
 	private Track currentTrack;
 	private Car myCar;
 	private Cars otherCars;
-	private double limitSpeed = 12;
+	private double limitSpeed = 9;
 	private double deceleration = 0;
 	private Corners trackCorners;
 	private double throttle = 0;
 	private double startSpeed;
 	private double startDist;
+	private List<LearningData> learnedData;
 	
 	private void UpdateCarPositions(List<Car> newPositions){
 		foreach(Car newPosition in newPositions){
@@ -79,13 +80,24 @@ public class Bot {
 		
 	}
 	
+	private LearningData GetLearnedDataById(int id){
+		foreach(LearningData d in learnedData){
+			if(d.cornerIndex == id){
+				return d;
+			}
+		}
+		return null;
+	}
 	
 	private Corners GetTrackCorners(Track track){
 		List<Corner> corners = new List<Corner>();
+		int cornerIndex = 0;
 		for(int i =  0; i < track.pieces.Count;i++){
 			if(track.pieces[i].angle != 0){
 				Piece previousPiece = track.pieces[i];
 				Corner corner = new Corner();
+				corner.cornerIndex = cornerIndex;
+				cornerIndex++;
 				double cornerangle = 0.0;
 				while((track.pieces[i].angle < 0 && previousPiece.angle < 0) || (track.pieces[i].angle > 0 && previousPiece.angle > 0)) {
 					corner.pieces.Add(track.pieces[i]);
@@ -104,6 +116,11 @@ public class Bot {
 						minRad = cornerPiece.radius;
 					}
 				}
+				if(GetLearnedDataById(corner.cornerIndex) != null){
+					corner.maxSpeed = GetLearnedDataById(corner.cornerIndex).maxspeed;
+				}else{
+					corner.maxSpeed = 10;
+				}
 				corner.maxRadius = maxRad;
 				corner.minRadius = minRad;
 				corners.Add(corner);
@@ -111,6 +128,23 @@ public class Bot {
 		}
 		
 		return new Corners(corners);
+	}
+	
+	private void LoadLearnedData(Track track) {
+		if(File.Exists("./"+track.name+".json")){
+			learnedData = JsonConvert.DeserializeObject<List<LearningData>>(File.ReadAllText("./"+track.name+".json"));
+		}else{
+			learnedData = new List<LearningData>();
+		}
+	}
+	private void UpdateLearnedData(LearningData newData){
+		for(int i = 0; i < learnedData.Count; i++){
+			if(learnedData[i].cornerIndex == newData.cornerIndex){
+				learnedData[i].maxspeed = newData.maxspeed;
+				string json = JsonConvert.SerializeObject(learnedData);
+				System.IO.File.WriteAllText("./"+currentTrack.name+".json", json);
+			}
+		}
 	}
 	
 	private Track CreateTrack(GameInit gameinit){
@@ -150,7 +184,7 @@ public class Bot {
 	}	
 	
 	private SendMsg DetermineAction(){
-		/*if(myCar.piecePosition.pieceIndex > 1 && myCar.piecePosition.pieceIndex < 4 && myCar.piecePosition.lane.startLaneIndex == 0 && myCar.piecePosition.lane.endLaneIndex == 0){
+		if(myCar.piecePosition.pieceIndex > 1 && myCar.piecePosition.pieceIndex < 4 && myCar.piecePosition.lane.startLaneIndex == 0 && myCar.piecePosition.lane.endLaneIndex == 0){
 			if(currentTrack.GetNextPiece(myCar).@switch){
 				return new SwitchLane("Right");
 			}
@@ -164,7 +198,7 @@ public class Bot {
 			if(currentTrack.GetNextPiece(myCar).@switch){
 				return new SwitchLane("Right");
 			}
-		}*/
+		}
 		
 		/*if(currentTrack.GetNextPiece(myCar).angle == 0){ //If next piece is straight, full throttle
 			return new Throttle(1.0);
@@ -190,12 +224,20 @@ public class Bot {
 				Console.WriteLine("null");
 				return new Throttle(1.0);
 			}
-			Console.WriteLine(currentCorner.angle);
-			double pieceLimitSpeed = limitSpeed / (currentCorner.angle / currentCorner.minRadius);
+			
+			double pieceLimitSpeed; //= limitSpeed / (currentCorner.angle / currentCorner.minRadius);
+			if(GetLearnedDataById(currentCorner.cornerIndex) != null){
+				pieceLimitSpeed = GetLearnedDataById(currentCorner.cornerIndex).maxspeed;
+			}
+			else{
+				pieceLimitSpeed = 10;
+			}
 			if(pieceLimitSpeed < 0){
 				pieceLimitSpeed = -pieceLimitSpeed;
 			}
-			if(myCar.speed < pieceLimitSpeed){
+			Piece nextPiece = currentTrack.GetNextPiece(myCar);
+			Console.WriteLine("this piece limit"+pieceLimitSpeed);
+			if(myCar.speed < pieceLimitSpeed || (nextPiece.angle < 30 && nextPiece.angle > -30)){
 				return new Throttle(1.0);
 			}else{
 				return new Throttle(0.0);
@@ -204,13 +246,18 @@ public class Bot {
 		}else{		
 			Corner nextCorner = trackCorners.GetNextCorner(myCar);
 			//double nextCornerLength = nextCorner.angle * Math.PI * nextCorner.minRadius;
-			double nextCornerEntrySpeed = limitSpeed / (nextCorner.angle / nextCorner.minRadius);
+			double nextCornerEntrySpeed;//limitSpeed / (nextCorner.angle / nextCorner.minRadius);
+			if(GetLearnedDataById(nextCorner.cornerIndex) != null){
+				nextCornerEntrySpeed = GetLearnedDataById(nextCorner.cornerIndex).maxspeed;
+			}else{
+				nextCornerEntrySpeed = 10;
+			}
 			if(nextCornerEntrySpeed < 0){
 				nextCornerEntrySpeed = -nextCornerEntrySpeed;
 			}
 			
 			double speedAfterBreaking = myCar.speed - (GetDistanceUntilPiece(nextCorner.pieces[0]) * deceleration);
-			Console.WriteLine(speedAfterBreaking);
+			Console.WriteLine("next corner limit"+nextCornerEntrySpeed);
 			if(speedAfterBreaking > nextCornerEntrySpeed){
 				return new Throttle(0.0);
 			}else{
@@ -253,24 +300,25 @@ public class Bot {
 				case "crash":
 					CrashMsg crashMsg = JsonConvert.DeserializeObject<CrashMsg>(line);
 					if(myCar.HasId(crashMsg.data)){ //Houston we have crashed...
-						Console.WriteLine("CRASHED AT GAMETICK:"+crashMsg.gameTick);
-						Console.WriteLine("speed: "+myCar.speed);
-						Piece crashPiece = currentTrack.pieces[myCar.piecePosition.pieceIndex];
-						Console.WriteLine("crashpiece index: "+myCar.piecePosition.pieceIndex);
-						Console.WriteLine("crashpiece angle: "+crashPiece.angle);
-						Console.WriteLine("crashpiece radius: "+crashPiece.radius);
-						Console.WriteLine("crashpiece length: "+crashPiece.length);
-
-				       	using (System.IO.StreamWriter file = new System.IO.StreamWriter("./crashes.txt", true))
-        				{
-           					file.WriteLine("CRASHED AT GAMETICK:"+crashMsg.gameTick);
-							file.WriteLine("speed: "+myCar.speed);
-							file.WriteLine("crashpiece index: "+myCar.piecePosition.pieceIndex);
-							file.WriteLine("crashpiece angle: "+crashPiece.angle);
-							file.WriteLine("crashpiece radius: "+crashPiece.radius);
-							file.WriteLine("crashpiece length: "+crashPiece.length);
-							file.WriteLine("END");							
-        				}
+						Console.WriteLine("#######CRASH!!##############");
+						Corner crashCorner = trackCorners.GetCornerByPiece(currentTrack.pieces[myCar.piecePosition.pieceIndex]);
+						if(crashCorner != null){
+							if(GetLearnedDataById(crashCorner.cornerIndex) != null){
+								LearningData lData = GetLearnedDataById(crashCorner.cornerIndex);
+								lData.maxspeed = lData.maxspeed - 0.01;
+								//UpdateLearnedData(lData);
+							}else{
+								LearningData lData = new LearningData();
+								lData.cornerIndex = crashCorner.cornerIndex;
+								lData.maxspeed = myCar.speed - 0.1;
+								learnedData.Add(lData);
+							    String serializedData = JsonConvert.SerializeObject(learnedData);
+								//File.WriteAllText("./"+currentTrack.name+".json", serializedData);
+							}
+						}
+						Double newspeed = myCar.speed - 0.1;
+						Console.WriteLine("Setting cornerspeed to "+newspeed);
+						Console.WriteLine("############################");
 					}
 					send(new Ping());
 					break;
@@ -280,6 +328,7 @@ public class Bot {
 					currentTrack = CreateTrack(gameInit);
 					otherCars = new Cars(gameInit.data.race.cars);
 					otherCars.cars.Remove(otherCars.GetCarById(myCar.id));
+					LoadLearnedData(currentTrack);
 					trackCorners = GetTrackCorners(currentTrack);
 					send(new Ping());
 					break;
@@ -312,6 +361,11 @@ class MsgWrapper {
     	this.msgType = msgType;
     	this.data = data;
     }
+}
+
+public class LearningData {
+	public int cornerIndex { get; set; }
+	public double maxspeed { get; set; }
 }
 
 public class Corners {
@@ -349,6 +403,8 @@ public class Corner {
 	public double angle { get; set; }
 	public double minRadius { get; set; }
 	public double maxRadius { get; set; }
+	public double maxSpeed { get; set; }
+	public int cornerIndex { get; set; } 
 	
 	public bool ContainsPiece(Piece piece){
 		foreach(Piece p in pieces){
