@@ -19,7 +19,7 @@ public class Bot {
 			StreamWriter writer = new StreamWriter(stream);
 			writer.AutoFlush = true;
 
-			new Bot(reader, writer, new JoinRace(botName, botKey, "keimola"));
+			new Bot(reader, writer, new Join(botName, botKey));
 		}
 	}
 
@@ -221,7 +221,7 @@ public class Bot {
 		if(currentTrack.pieces[myCar.piecePosition.pieceIndex].angle != 0){
 			Corner currentCorner = trackCorners.GetCornerByPiece(currentTrack.pieces[myCar.piecePosition.pieceIndex]);
 			if(currentCorner == null){
-				Console.WriteLine("null");
+				//Console.WriteLine("null");
 				return new Throttle(1.0);
 			}
 			
@@ -236,7 +236,7 @@ public class Bot {
 				pieceLimitSpeed = -pieceLimitSpeed;
 			}
 			Piece nextPiece = currentTrack.GetNextPiece(myCar);
-			Console.WriteLine("this piece limit"+pieceLimitSpeed);
+			//Console.WriteLine("this piece limit"+pieceLimitSpeed);
 			if(myCar.speed < pieceLimitSpeed || (nextPiece.angle < 30 && nextPiece.angle > -30)){
 				return new Throttle(1.0);
 			}else{
@@ -257,7 +257,7 @@ public class Bot {
 			}
 			
 			double speedAfterBreaking = myCar.speed - (GetDistanceUntilPiece(nextCorner.pieces[0]) * deceleration);
-			Console.WriteLine("next corner limit"+nextCornerEntrySpeed);
+			//Console.WriteLine("next corner limit"+nextCornerEntrySpeed);
 			if(speedAfterBreaking > nextCornerEntrySpeed){
 				return new Throttle(0.0);
 			}else{
@@ -286,7 +286,7 @@ public class Bot {
 				case "carPositions":
 					CarPositions carPositions = JsonConvert.DeserializeObject<CarPositions>(line);
 					UpdateCarPositions(carPositions.data);
-					Console.WriteLine("Car startlaneindex:"+myCar.piecePosition.lane.startLaneIndex+" Car endlaneIndex:"+myCar.piecePosition.lane.endLaneIndex+" Current tick: "+carPositions.gameTick);
+					//Console.WriteLine("Car startlaneindex:"+myCar.piecePosition.lane.startLaneIndex+" Car endlaneIndex:"+myCar.piecePosition.lane.endLaneIndex+" Current tick: "+carPositions.gameTick);
 					if(deceleration == 0){
 						send(GetDeceleration());
 					}else{
