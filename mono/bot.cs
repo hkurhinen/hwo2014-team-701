@@ -268,7 +268,7 @@ public class Bot {
 		
 	}
 
-	Bot(StreamReader reader, StreamWriter writer, JoinRace join) {
+	Bot(StreamReader reader, StreamWriter writer, Join join) {
 		this.writer = writer;
 		string line;
 
