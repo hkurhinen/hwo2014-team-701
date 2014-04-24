@@ -598,9 +598,21 @@ public class Car
 			if(this.piecePosition.pieceIndex == newspeed.piecePosition.pieceIndex){
 				this.speed = newspeed.piecePosition.inPieceDistance - this.piecePosition.inPieceDistance;
 			}else{
-				if(currentTrack.pieces[this.piecePosition.pieceIndex].length > 0){ //Previous piece length was known, otherwise just quess that speed hasn't changed.
-					this.speed = currentTrack.pieces[this.piecePosition.pieceIndex].length - this.piecePosition.inPieceDistance + newspeed.piecePosition.inPieceDistance;
+				double previouslength;
+				if(currentTrack.pieces[this.piecePosition.pieceIndex].length > 0){
+					previouslength = currentTrack.pieces[this.piecePosition.pieceIndex].length;
+				}else{
+					double totalradius;
+					if(currentTrack.pieces[this.piecePosition.pieceIndex].angle > 0){
+						totalradius = currentTrack.pieces[this.piecePosition.pieceIndex].radius - currentTrack.lanes[this.piecePosition.lane.startLaneIndex].distanceFromCenter;
+					}else{
+						totalradius = currentTrack.pieces[this.piecePosition.pieceIndex].radius + currentTrack.lanes[this.piecePosition.lane.startLaneIndex].distanceFromCenter;
+					}
+					previouslength = (currentTrack.pieces[this.piecePosition.pieceIndex].angle / 360) * 2 * Math.PI * totalradius;
 				}
+				
+				this.speed = previouslength - this.piecePosition.inPieceDistance + newspeed.piecePosition.inPieceDistance;
+				
 			}
 		}
 	}
