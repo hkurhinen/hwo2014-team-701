@@ -34,7 +34,7 @@ public class Bot {
 	private double throttle = 0;
 	private double startSpeed;
 	private double startDist;
-	private List<LearningData> learnedData;
+    private int currentGameTick;
 	
 	private void UpdateCarPositions(List<Car> newPositions){
 		foreach(Car newPosition in newPositions){
@@ -83,14 +83,6 @@ public class Bot {
 		return new Throttle(1);
 	}
 	
-	private LearningData GetLearnedDataById(int id){
-		foreach(LearningData d in learnedData){
-			if(d.cornerIndex == id){
-				return d;
-			}
-		}
-		return null;
-	}
 	
 	private Corners GetTrackCorners(Track track){
 		List<Corner> corners = new List<Corner>();
@@ -119,11 +111,6 @@ public class Bot {
 						minRad = cornerPiece.radius;
 					}
 				}
-				if(GetLearnedDataById(corner.cornerIndex) != null){
-					corner.maxSpeed = GetLearnedDataById(corner.cornerIndex).maxspeed;
-				}else{
-					corner.maxSpeed = 10;
-				}
 				corner.maxRadius = maxRad;
 				corner.minRadius = minRad;
 				corners.Add(corner);
@@ -131,23 +118,6 @@ public class Bot {
 		}
 		
 		return new Corners(corners);
-	}
-	
-	private void LoadLearnedData(Track track) {
-		if(File.Exists("./"+track.name+".json")){
-			learnedData = JsonConvert.DeserializeObject<List<LearningData>>(File.ReadAllText("./"+track.name+".json"));
-		}else{
-			learnedData = new List<LearningData>();
-		}
-	}
-	private void UpdateLearnedData(LearningData newData){
-		for(int i = 0; i < learnedData.Count; i++){
-			if(learnedData[i].cornerIndex == newData.cornerIndex){
-				learnedData[i].maxspeed = newData.maxspeed;
-				string json = JsonConvert.SerializeObject(learnedData);
-				System.IO.File.WriteAllText("./"+currentTrack.name+".json", json);
-			}
-		}
 	}
 	
 	private Track CreateTrack(GameInit gameinit){
@@ -365,11 +335,11 @@ public class Bot {
 					YourCar yourCar = JsonConvert.DeserializeObject<YourCar>(line);
 					myCar = new Car();
 					myCar.id = yourCar.data;
-					send(new Ping());
 				break;
 				case "carPositions":
 					CarPositions carPositions = JsonConvert.DeserializeObject<CarPositions>(line);
 					UpdateCarPositions(carPositions.data);
+					currentGameTick = carPositions.gameTick;
 					Console.WriteLine("Car startlaneindex:"+myCar.piecePosition.lane.startLaneIndex+" Car endlaneIndex:"+myCar.piecePosition.lane.endLaneIndex+" Current tick: "+carPositions.gameTick+ " Speed: "+myCar.speed);
 					if(deceleration == 0){
 						send(GetDeceleration());
@@ -379,32 +349,13 @@ public class Bot {
 					break;
 				case "join":
 					Console.WriteLine("Joined");
-					send(new Ping());
 					break;
 				case "crash":
 					CrashMsg crashMsg = JsonConvert.DeserializeObject<CrashMsg>(line);
 					if(myCar.HasId(crashMsg.data)){ //Houston we have crashed...
 						Console.WriteLine("#######CRASH!!##############");
-						Corner crashCorner = trackCorners.GetCornerByPiece(currentTrack.pieces[myCar.piecePosition.pieceIndex]);
-						if(crashCorner != null){
-							if(GetLearnedDataById(crashCorner.cornerIndex) != null){
-								LearningData lData = GetLearnedDataById(crashCorner.cornerIndex);
-								lData.maxspeed = lData.maxspeed - 0.01;
-								//UpdateLearnedData(lData);
-							}else{
-								LearningData lData = new LearningData();
-								lData.cornerIndex = crashCorner.cornerIndex;
-								lData.maxspeed = myCar.speed - 0.1;
-								learnedData.Add(lData);
-							    String serializedData = JsonConvert.SerializeObject(learnedData);
-								//File.WriteAllText("./"+currentTrack.name+".json", serializedData);
-							}
-						}
-						Double newspeed = myCar.speed - 0.1;
-						Console.WriteLine("Setting cornerspeed to "+newspeed);
 						Console.WriteLine("############################");
 					}
-					send(new Ping());
 					break;
 				case "gameInit":
 					Console.WriteLine("Race init");
@@ -412,13 +363,10 @@ public class Bot {
 					currentTrack = CreateTrack(gameInit);
 					otherCars = new Cars(gameInit.data.race.cars);
 					otherCars.cars.Remove(otherCars.GetCarById(myCar.id));
-					LoadLearnedData(currentTrack);
 					trackCorners = GetTrackCorners(currentTrack);
-					send(new Ping());
 					break;
 				case "gameEnd":
 					Console.WriteLine("Race ended");
-					send(new Ping());
 					break;
 				case "gameStart":
 					Console.WriteLine("Race starts");
@@ -426,14 +374,12 @@ public class Bot {
 					break;
 				default:
 					Console.WriteLine(line);
-					send(new Ping());
 					break;
 			}
 		}
 	}
 
 	private void send(SendMsg msg) {
-		//Console.WriteLine(msg.ToJson());
 		writer.WriteLine(msg.ToJson());
 	}
 }
@@ -682,8 +628,6 @@ public class Car
 	
 	private void calculateSpeed(Car newspeed, Track currentTrack){
 
-
-
 		if(this.piecePosition != null){
 			double totalradius = 0;
 			if(currentTrack.pieces[this.piecePosition.pieceIndex].angle > 0){
@@ -691,7 +635,6 @@ public class Car
 			}else if(currentTrack.pieces[this.piecePosition.pieceIndex].angle < 0){
 				totalradius = currentTrack.pieces[this.piecePosition.pieceIndex].radius + currentTrack.lanes[this.piecePosition.lane.startLaneIndex].distanceFromCenter;
 			}
-
 
 			if(this.piecePosition.pieceIndex == newspeed.piecePosition.pieceIndex){
 				this.speed = newspeed.piecePosition.inPieceDistance - this.piecePosition.inPieceDistance;
@@ -701,6 +644,9 @@ public class Car
 					previouslength = currentTrack.pieces[this.piecePosition.pieceIndex].length;
 				}else{
 					previouslength = (currentTrack.pieces[this.piecePosition.pieceIndex].angle / 360) * 2 * Math.PI * totalradius;
+					if(previouslength < 0){
+						previouslength = -previouslength;
+					}
 				}
 				
 				this.speed = previouslength - this.piecePosition.inPieceDistance + newspeed.piecePosition.inPieceDistance;
