@@ -80,7 +80,7 @@ public class Bot {
 			}
 		}*/
 		deceleration = 0.0204081632653056;
-		return new Throttle(1);
+		return new Throttle(1, currentGameTick);
 	}
 	
 	
@@ -305,16 +305,16 @@ public class Bot {
 		//Console.WriteLine(GetMaxSpeed()+" , "+GetMaxEntrySpeed()+" "+GetDistanceUntilPiece(currentTrack.pieces[GetNextTurn(myCar)]));
 		if (currentTrack.pieces [myCar.piecePosition.pieceIndex].angle != 0) {
 			//return new Throttle(0.6);
-			return new Throttle(GetMaxSpeed()/10);
+			return new Throttle(GetMaxSpeed()/10, currentGameTick);
 		} else {
 			Double entryspeed = GetMaxEntrySpeed();
 			if(myCar.speed - (deceleration * GetDistanceUntilPiece(currentTrack.pieces[GetNextTurn(myCar)])) > entryspeed){
 				if(entryspeed < 0){
-					return new Throttle(1.0);
+					return new Throttle(1.0, currentGameTick);
 				}
-				return new Throttle(0.0);
+				return new Throttle(0.0, currentGameTick);
 			}else{
-				return new Throttle(1.0);
+				return new Throttle(1.0, currentGameTick);
 			}
 		}
 
@@ -370,6 +370,7 @@ public class Bot {
 					break;
 				case "gameStart":
 					Console.WriteLine("Race starts");
+					currentGameTick = 0;
 					send(new Ping());
 					break;
 				default:
@@ -381,16 +382,19 @@ public class Bot {
 
 	private void send(SendMsg msg) {
 		writer.WriteLine(msg.ToJson());
+		Console.WriteLine(msg.ToJson());
 	}
 }
 
 class MsgWrapper {
     public string msgType;
     public Object data;
+	public int gameTick;
 
-    public MsgWrapper(string msgType, Object data) {
+    public MsgWrapper(string msgType, Object data, int gameTick) {
     	this.msgType = msgType;
     	this.data = data;
+		this.gameTick = gameTick;
     }
 }
 
@@ -691,20 +695,22 @@ public class BotId
 /******* MESSAGES TO SERVER **********/
 
 abstract class SendMsg {
+	public int gameTick { get; set; }
 	public string ToJson() {
-		return JsonConvert.SerializeObject(new MsgWrapper(this.MsgType(), this.MsgData()));
+		return JsonConvert.SerializeObject(new MsgWrapper(this.MsgType(), this.MsgData(), this.gameTick ));
 	}
 	protected virtual Object MsgData() {
         return this;
     }
 
     protected abstract string MsgType();
+
 }
 
 class Join: SendMsg {
     public string name { get; set; }
     public string key { get; set; }
-
+	
 	public Join(string name, string key) {
 		this.name = name;
 		this.key = key;
@@ -738,8 +744,9 @@ class JoinRace: SendMsg {
 class Throttle: SendMsg {
 	public double value;
 
-	public Throttle(double value) {
+	public Throttle(double value, int gameTick) {
 		this.value = value;
+		this.gameTick = gameTick;
 	}
 
 	protected override Object MsgData() {
@@ -749,6 +756,7 @@ class Throttle: SendMsg {
 	protected override string MsgType() {
 		return "throttle";
 	}
+	
 }
 
 class SwitchLane: SendMsg {
