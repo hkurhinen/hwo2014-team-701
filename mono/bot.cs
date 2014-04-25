@@ -20,6 +20,7 @@ public class Bot {
 			writer.AutoFlush = true;
 
 			new Bot(reader, writer, new Join(botName, botKey));
+			//new Bot(reader, writer, new JoinRace(botName, botKey, "france"));
 		}
 	}
 
@@ -49,7 +50,7 @@ public class Bot {
 		}
 	}
 	
-	private SendMsg GetDeceleration(){
+	private SendMsg GetDeceleration(){/*
 		if(myCar.speed == 0){
 			throttle = 1;
 			return new Throttle(1.0);
@@ -65,6 +66,7 @@ public class Bot {
 				Console.WriteLine("End distance: "+myCar.piecePosition.inPieceDistance);
 				Console.WriteLine("End speed: "+myCar.speed);
 				deceleration = speedLowered / distanceTraveled;
+				Console.WriteLine ("Deceleration: "+deceleration);
 				return new Throttle(1.0);
 			}else{
 				if(myCar.speed < 1){
@@ -76,8 +78,9 @@ public class Bot {
 					return new Throttle(0);
 				}
 			}
-		}
-		
+		}*/
+		deceleration = 0.0204081632653056;
+		return new Throttle(1);
 	}
 	
 	private LearningData GetLearnedDataById(int id){
@@ -182,8 +185,54 @@ public class Bot {
 		}
 		return dist - myCar.piecePosition.inPieceDistance;
 	}	
-	
-	private SendMsg DetermineAction(){
+
+	private int GetNextTurn (Car car)
+	{
+		int i = car.piecePosition.pieceIndex;
+		while(currentTrack.pieces[i].angle == 0){
+			i++;
+			if(i > currentTrack.pieces.Count - 1){
+				i = 0;
+			}
+		}
+		return i;
+	}
+
+	private Double GuessSlipAngle ()
+	{
+		//if (currentTrack.pieces[myCar.piecePosition.pieceIndex].angle < 0) {
+			//return -(myCar.angularForce * 60 * 2);
+		//}
+		return myCar.angularForce * 60 * 2;
+	}
+
+	private Double GetMaxSpeed ()
+	{
+		double totalradius = 0;
+		if(currentTrack.pieces[myCar.piecePosition.pieceIndex].angle > 0){
+			totalradius = currentTrack.pieces[myCar.piecePosition.pieceIndex].radius - currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
+		}else{
+			totalradius = currentTrack.pieces[myCar.piecePosition.pieceIndex].radius + currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
+		}
+		//Console.WriteLine(myCar.angularForce);
+		return Math.Sqrt((0.38 * GuessSlipAngle () * totalradius) / 60 );
+	}
+
+	private Double GetMaxEntrySpeed ()
+	{
+		double totalradius = 0;
+		if(currentTrack.pieces[GetNextTurn(myCar)].angle > 0){
+			totalradius = currentTrack.pieces[GetNextTurn(myCar)].radius - currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
+		}else{
+			totalradius = currentTrack.pieces[GetNextTurn(myCar)].radius + currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
+		}
+		return Math.Sqrt (0.48 * totalradius);
+	}
+
+	private SendMsg DetermineAction ()
+	{
+
+		/*
 		if(myCar.piecePosition.pieceIndex > 1 && myCar.piecePosition.pieceIndex < 4 && myCar.piecePosition.lane.startLaneIndex == 0 && myCar.piecePosition.lane.endLaneIndex == 0){
 			if(currentTrack.GetNextPiece(myCar).@switch){
 				return new SwitchLane("Right");
@@ -217,7 +266,7 @@ public class Bot {
 			}
 			return new Throttle(1.0); //slow only to tight curves
 		}*/
-		
+		/*
 		if(currentTrack.pieces[myCar.piecePosition.pieceIndex].angle != 0){
 			Corner currentCorner = trackCorners.GetCornerByPiece(currentTrack.pieces[myCar.piecePosition.pieceIndex]);
 			if(currentCorner == null){
@@ -265,10 +314,45 @@ public class Bot {
 			}
 		}
 		
-		
+		*/
+		/*Piece current = currentTrack.pieces [myCar.piecePosition.pieceIndex];
+		if (currentTrack.pieces [myCar.piecePosition.pieceIndex].angle != 0) {
+
+			using (System.IO.StreamWriter file = new System.IO.StreamWriter("./angle.txt", true))
+        				{
+							double totalradius;
+							if(currentTrack.pieces[myCar.piecePosition.pieceIndex].angle > 0){
+								totalradius = currentTrack.pieces[myCar.piecePosition.pieceIndex].radius - currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
+							}else{
+								totalradius = currentTrack.pieces[myCar.piecePosition.pieceIndex].radius + currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
+							}
+				if(myCar.speed > 0){
+           					file.WriteLine(myCar.angle+" , "+GuessSlipAngle()+" , "+current.angle+" , "+totalradius+" , "+myCar.speed);
+							Console.WriteLine(myCar.angle+" , "+GuessSlipAngle()+" , "+current.angle+" , "+totalradius+" , "+myCar.speed);
+				}
+        				}
+		}*/
+		//Console.WriteLine(GetMaxSpeed()+" , "+GetMaxEntrySpeed()+" "+GetDistanceUntilPiece(currentTrack.pieces[GetNextTurn(myCar)]));
+		if (currentTrack.pieces [myCar.piecePosition.pieceIndex].angle != 0) {
+			//return new Throttle(0.6);
+			return new Throttle(GetMaxSpeed()/10);
+		} else {
+			Double entryspeed = GetMaxEntrySpeed();
+			if(myCar.speed - (deceleration * GetDistanceUntilPiece(currentTrack.pieces[GetNextTurn(myCar)])) > entryspeed){
+				if(entryspeed < 0){
+					return new Throttle(1.0);
+				}
+				return new Throttle(0.0);
+			}else{
+				return new Throttle(1.0);
+			}
+		}
+
+
+
 	}
 
-	Bot(StreamReader reader, StreamWriter writer, Join join) {
+	Bot(StreamReader reader, StreamWriter writer, SendMsg join) {
 		this.writer = writer;
 		string line;
 
@@ -286,7 +370,7 @@ public class Bot {
 				case "carPositions":
 					CarPositions carPositions = JsonConvert.DeserializeObject<CarPositions>(line);
 					UpdateCarPositions(carPositions.data);
-					//Console.WriteLine("Car startlaneindex:"+myCar.piecePosition.lane.startLaneIndex+" Car endlaneIndex:"+myCar.piecePosition.lane.endLaneIndex+" Current tick: "+carPositions.gameTick);
+					Console.WriteLine("Car startlaneindex:"+myCar.piecePosition.lane.startLaneIndex+" Car endlaneIndex:"+myCar.piecePosition.lane.endLaneIndex+" Current tick: "+carPositions.gameTick+ " Speed: "+myCar.speed);
 					if(deceleration == 0){
 						send(GetDeceleration());
 					}else{
@@ -341,6 +425,7 @@ public class Bot {
 					send(new Ping());
 					break;
 				default:
+					Console.WriteLine(line);
 					send(new Ping());
 					break;
 			}
@@ -572,6 +657,7 @@ public class Car
 {
 	public Car(){
 		this.speed = 0.0;
+		this.angularForce = 0.0;
 	}
 	
     public Id id { get; set; }
@@ -579,6 +665,7 @@ public class Car
     public PiecePosition piecePosition { get; set; }
 	public Dimensions dimensions { get; set; }
 	public double speed { get; set; }
+	public double angularForce { get; set; } 
 	
 	public bool EqualsWithCar(Car car){
 		if(car.id.name == this.id.name && car.id.color == this.id.color){
@@ -594,7 +681,18 @@ public class Car
 	}
 	
 	private void calculateSpeed(Car newspeed, Track currentTrack){
+
+
+
 		if(this.piecePosition != null){
+			double totalradius = 0;
+			if(currentTrack.pieces[this.piecePosition.pieceIndex].angle > 0){
+				totalradius = currentTrack.pieces[this.piecePosition.pieceIndex].radius - currentTrack.lanes[this.piecePosition.lane.startLaneIndex].distanceFromCenter;
+			}else if(currentTrack.pieces[this.piecePosition.pieceIndex].angle < 0){
+				totalradius = currentTrack.pieces[this.piecePosition.pieceIndex].radius + currentTrack.lanes[this.piecePosition.lane.startLaneIndex].distanceFromCenter;
+			}
+
+
 			if(this.piecePosition.pieceIndex == newspeed.piecePosition.pieceIndex){
 				this.speed = newspeed.piecePosition.inPieceDistance - this.piecePosition.inPieceDistance;
 			}else{
@@ -602,19 +700,20 @@ public class Car
 				if(currentTrack.pieces[this.piecePosition.pieceIndex].length > 0){
 					previouslength = currentTrack.pieces[this.piecePosition.pieceIndex].length;
 				}else{
-					double totalradius;
-					if(currentTrack.pieces[this.piecePosition.pieceIndex].angle > 0){
-						totalradius = currentTrack.pieces[this.piecePosition.pieceIndex].radius - currentTrack.lanes[this.piecePosition.lane.startLaneIndex].distanceFromCenter;
-					}else{
-						totalradius = currentTrack.pieces[this.piecePosition.pieceIndex].radius + currentTrack.lanes[this.piecePosition.lane.startLaneIndex].distanceFromCenter;
-					}
 					previouslength = (currentTrack.pieces[this.piecePosition.pieceIndex].angle / 360) * 2 * Math.PI * totalradius;
 				}
 				
 				this.speed = previouslength - this.piecePosition.inPieceDistance + newspeed.piecePosition.inPieceDistance;
 				
 			}
+			if(totalradius == 0){
+				this.angularForce = 0;
+			}else{
+				this.angularForce = Math.Pow(this.speed, 2) / totalradius;
+			}
+
 		}
+
 	}
 	
 	public void updateCarPosition(Car car, Track currentTrack){
