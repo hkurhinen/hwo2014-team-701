@@ -35,6 +35,16 @@ public class Bot {
 	private double startSpeed;
 	private double startDist;
     private int currentGameTick;
+	private double acceleration;
+	private double friction;
+	
+	/**LINEAR REGRESSION VALUES**/
+	private double[] xVals = new double[4];
+	private double[] yVals = new double[4];
+	private double rsquared;
+	private double yintercept; //The y-intercept value of the line (i.e. y = ax + b, yintercept is b)
+	private double slope; //The slop of the line (i.e. y = ax + b, slope is a).</param>
+	/****************************/
 	
 	private void UpdateCarPositions(List<Car> newPositions){
 		foreach(Car newPosition in newPositions){
@@ -185,7 +195,7 @@ public class Bot {
 			totalradius = currentTrack.pieces[myCar.piecePosition.pieceIndex].radius + currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
 		}
 		//Console.WriteLine(myCar.angularForce);
-		return Math.Sqrt((0.38 * GuessSlipAngle () * totalradius) / 60 );
+		return Math.Sqrt((0.43 * GuessSlipAngle () * totalradius) / 60 );
 	}
 
 	private Double GetMaxEntrySpeed ()
@@ -196,9 +206,70 @@ public class Bot {
 		}else{
 			totalradius = currentTrack.pieces[GetNextTurn(myCar)].radius + currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
 		}
-		return Math.Sqrt (0.48 * totalradius);
+		return Math.Sqrt (0.5 * totalradius);
 	}
-
+	
+	private Double SpeedLostPerTick(){
+		return friction * Math.Pow(myCar.speed, 2);
+	}
+	
+	
+	private double SpeedAfterNTicks(int ticks, double throttle){
+		double speedAfterTicks = myCar.speed;
+		for(int i = 0; i < ticks;i++){
+			speedAfterTicks = NextTickSpeed(throttle, speedAfterTicks);
+		}
+		return speedAfterTicks;
+	}
+	
+	private bool NeedToBreak(double reqSpeed){
+		double distanceUntilTurn = GetDistanceUntilPiece(currentTrack.pieces[GetNextTurn(myCar)]);
+		int ticksUntilTurn = Convert.ToInt32(distanceUntilTurn / myCar.speed);
+		if(SpeedAfterNTicks(ticksUntilTurn, 0.0) > reqSpeed){
+			return true;
+		}
+		return false;
+	}
+	
+	private double NextTickSpeed(double throttle, double previousSpeed){
+		double speendIncreased = previousSpeed * slope + (throttle * yintercept);
+		return myCar.speed + speendIncreased;
+	}
+	
+	private void LinearRegression(){
+		double sumOfX = 0;
+		double sumOfY = 0;
+		double sumOfXSq = 0;
+		double sumOfYSq = 0;
+		double ssX = 0;
+		double ssY = 0;
+		double sumCodeviates = 0;
+		double sCo = 0;
+		double count = xVals.Length;
+		 
+		for (int ctr = 0; ctr < xVals.Length; ctr++) {
+			double x = xVals[ctr];
+			double y = yVals[ctr];
+			sumCodeviates += x * y;
+			sumOfX += x;
+			sumOfY += y;
+			sumOfXSq += x * x;
+			sumOfYSq += y * y;
+		}
+		ssX = sumOfXSq - ((sumOfX * sumOfX) / count);
+		ssY = sumOfYSq - ((sumOfY * sumOfY) / count);
+		double RNumerator = (count * sumCodeviates) - (sumOfX * sumOfY);
+		double RDenom = (count * sumOfXSq - (sumOfX * sumOfX)) * (count * sumOfYSq - (sumOfY * sumOfY));
+		sCo = sumCodeviates - ((sumOfX * sumOfY) / count);
+		 
+		double meanX = sumOfX / count;
+		double meanY = sumOfY / count;
+		double dblR = RNumerator / Math.Sqrt(RDenom);
+		rsquared = dblR * dblR;
+		yintercept = meanY - ((sCo / ssX) * meanX);
+		slope = sCo / ssX;
+	}
+	
 	private SendMsg DetermineAction ()
 	{
 
@@ -303,12 +374,40 @@ public class Bot {
         				}
 		}*/
 		//Console.WriteLine(GetMaxSpeed()+" , "+GetMaxEntrySpeed()+" "+GetDistanceUntilPiece(currentTrack.pieces[GetNextTurn(myCar)]));
+		if(currentGameTick == 0){
+			return new Throttle(1.0, currentGameTick);
+		}else if(currentGameTick == 1){
+			acceleration = myCar.speed; //Get the acceleration without friction
+			return new Throttle(1.0, currentGameTick);
+		}else if(currentGameTick == 2){
+			double a2 = myCar.speed;
+			xVals[0] = a2;
+			yVals[0] = a2 - acceleration;
+			acceleration = a2;
+			friction = (2 * acceleration - a2) / Math.Pow(acceleration, 2);
+			Console.WriteLine("friction coefficent : "+friction);
+			return new Throttle(1.0, currentGameTick);
+		}else if(currentGameTick < 6){ //Method of a 'strong and stupid',collect data and use linear regression to deternime acceleration.
+			double a = myCar.speed;
+			xVals[currentGameTick - 2] = a;
+			yVals[currentGameTick - 2] = a - acceleration;
+			acceleration = a;
+			return new Throttle(1.0, currentGameTick);
+		}else if(currentGameTick == 6){
+			LinearRegression();
+		}
+		
+		
 		if (currentTrack.pieces [myCar.piecePosition.pieceIndex].angle != 0) {
 			//return new Throttle(0.6);
-			return new Throttle(GetMaxSpeed()/10, currentGameTick);
+			if(myCar.speed > GetMaxEntrySpeed()){
+				return new Throttle(0.0, currentGameTick);
+			}else{
+				return new Throttle(GetMaxSpeed()/10, currentGameTick);
+			}
 		} else {
 			Double entryspeed = GetMaxEntrySpeed();
-			if(myCar.speed - (deceleration * GetDistanceUntilPiece(currentTrack.pieces[GetNextTurn(myCar)])) > entryspeed){
+			if(NeedToBreak(entryspeed)){
 				if(entryspeed < 0){
 					return new Throttle(1.0, currentGameTick);
 				}
@@ -341,11 +440,7 @@ public class Bot {
 					UpdateCarPositions(carPositions.data);
 					currentGameTick = carPositions.gameTick;
 					Console.WriteLine("Car startlaneindex:"+myCar.piecePosition.lane.startLaneIndex+" Car endlaneIndex:"+myCar.piecePosition.lane.endLaneIndex+" Current tick: "+carPositions.gameTick+ " Speed: "+myCar.speed);
-					if(deceleration == 0){
-						send(GetDeceleration());
-					}else{
-						send(DetermineAction());
-					}
+					send(DetermineAction());
 					break;
 				case "join":
 					Console.WriteLine("Joined");
