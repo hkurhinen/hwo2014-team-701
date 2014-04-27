@@ -166,6 +166,29 @@ public class Bot {
 		return dist - myCar.piecePosition.inPieceDistance;
 	}	
 
+	private string GetNextSwitch (Car car)
+	{
+		int i = car.piecePosition.pieceIndex;
+		double totalangle = 0;
+		if (currentTrack.GetNextPiece (myCar).@switch) {
+			while (!currentTrack.pieces[i].@switch) {
+				i++;
+				totalangle = + currentTrack.pieces [i].angle;
+				if (i > currentTrack.pieces.Count - 1) {
+					i = 0;
+				}
+			}
+		}
+		if (totalangle > 0) {
+			Console.WriteLine ("WANNA SWITCH LEFT!!");
+			return "Left";
+		} else {
+			Console.WriteLine ("WANNA SWITCH RIGHT!!");
+			return "Right";
+		}
+	}
+
+
 	private int GetNextTurn (Car car)
 	{
 		int i = car.piecePosition.pieceIndex;
@@ -272,7 +295,7 @@ public class Bot {
 	
 	private SendMsg DetermineAction ()
 	{
-
+		GetNextSwitch(myCar);
 		/*
 		if(myCar.piecePosition.pieceIndex > 1 && myCar.piecePosition.pieceIndex < 4 && myCar.piecePosition.lane.startLaneIndex == 0 && myCar.piecePosition.lane.endLaneIndex == 0){
 			if(currentTrack.GetNextPiece(myCar).@switch){
