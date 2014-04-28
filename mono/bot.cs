@@ -265,8 +265,12 @@ public class Bot {
 	}
 	
 	private bool NeedToBreak(double reqSpeed, Piece p){
+		if(myCar.speed == 0){
+			return false;
+		}
 		double distanceUntilTurn = GetDistanceUntilPiece(p);
 		Console.WriteLine("distance until turn:"+distanceUntilTurn);
+
 		int ticksUntilTurn = Convert.ToInt32(distanceUntilTurn / myCar.speed);
 		if(SpeedAfterNTicks(ticksUntilTurn, 0.0, myCar.speed) > reqSpeed){
 			return true;
