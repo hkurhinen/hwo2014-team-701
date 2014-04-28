@@ -19,8 +19,8 @@ public class Bot {
 			StreamWriter writer = new StreamWriter(stream);
 			writer.AutoFlush = true;
 
-			new Bot(reader, writer, new Join(botName, botKey));
-			//new Bot(reader, writer, new JoinRace(botName, botKey, "germany"));
+			//new Bot(reader, writer, new Join(botName, botKey));
+			new Bot(reader, writer, new JoinRace(botName, botKey, "germany"));
 		}
 	}
 
@@ -126,7 +126,6 @@ public class Bot {
 		if(sectorLength < 0){
 			sectorLength = -sectorLength;
 		}
-		Console.WriteLine("sector:"+sectorLength);
 		return sectorLength;
 		
 	}
@@ -163,18 +162,22 @@ public class Bot {
 
 	private string GetNextSwitch (Car car)
 	{
-		int i = car.piecePosition.pieceIndex;
+		//int i = car.piecePosition.pieceIndex;
+		int j = 2;
+		//Piece upcomingSwitch = currentTrack.GetNextPiece(car);
 		double totalangle = 0;
-		if (currentTrack.GetNextPiece (myCar).@switch) {
-			while (!currentTrack.pieces[i].@switch) {
-				i++;
-				totalangle = + currentTrack.pieces [i].angle;
-				if (i > currentTrack.pieces.Count - 1) {
-					i = 0;
-				}
+		if (currentTrack.GetNextPiece (car).@switch) {
+			while (!currentTrack.GetNextPieceX(car, j).@switch) {
+				//i++;
+				j++;
+				totalangle += currentTrack.GetNextPieceX(car, j).angle;
+				Console.WriteLine("###############TOTAL ANGLE:"+totalangle+"##############################");
+				//if (i == currentTrack.pieces.Count - 1) {
+				//	i = 0;
+				//}
 			}
 		}
-		if (totalangle > 0) {
+		if (totalangle < 0) {
 			//Console.WriteLine ("WANNA SWITCH LEFT!!");
 			return "Left";
 		} else {
@@ -198,14 +201,7 @@ public class Bot {
 
 	private Double GuessSlipAngle ()
 	{
-		/*if (currentTrack.pieces[myCar.piecePosition.pieceIndex].angle < 0) {
-			//return -(myCar.angularForce * 60 * 2);
-		
-		x = (c + (c^2 - 4*k)^(1/2))/(2*exp(t*(c/2 - (c^2 - 4*k)^(1/2)/2))*(c^2 - 4*k)^(1/2)) - (c - (c^2 - 4*k)^(1/2))/(2*exp(t*(c/2 + (c^2 - 4*k)^(1/2)/2))*(c^2 - 4*k)^(1/2))
-																														
-		}*/
 		return myCar.angularForce * 60 * 2;
-
 	}
 
 	private Double GetMaxSpeed ()
@@ -216,8 +212,7 @@ public class Bot {
 		}else{
 			totalradius = currentTrack.pieces[myCar.piecePosition.pieceIndex].radius + currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
 		}
-		//Console.WriteLine(myCar.angularForce);
-		double maxspeed = Math.Sqrt((0.43 * GuessSlipAngle () * totalradius) / 60 );
+		double maxspeed = Math.Sqrt(0.45 * totalradius);
 		if(ConnectedTurn() != null){
 			double nextEntrySpeed = GetMaxEntrySpeed(ConnectedTurn());
 			if(NeedToBreak(nextEntrySpeed, ConnectedTurn())){
@@ -260,7 +255,6 @@ public class Bot {
 		for(int i = 0; i < ticks;i++){
 			speedAfterTicks = NextTickSpeed(throttle, speedAfterTicks);
 		}
-		Console.WriteLine("speed after straight: "+speedAfterTicks);
 		return speedAfterTicks;
 	}
 	
@@ -269,7 +263,6 @@ public class Bot {
 			return false;
 		}
 		double distanceUntilTurn = GetDistanceUntilPiece(p);
-		Console.WriteLine("distance until turn:"+distanceUntilTurn);
 
 		int ticksUntilTurn = Convert.ToInt32(distanceUntilTurn / myCar.speed);
 		if(SpeedAfterNTicks(ticksUntilTurn, 0.0, myCar.speed) > reqSpeed){
@@ -344,6 +337,11 @@ public class Bot {
 	
 	private SendMsg DetermineAction ()
 	{
+		double myCarAngle = myCar.angle;
+		if(myCarAngle < 0){
+			myCarAngle = -myCarAngle;
+		}
+		
 		if(currentGameTick == 0){
 			return new Throttle(1.0, currentGameTick);
 		}else if(currentGameTick == 1){
@@ -355,7 +353,6 @@ public class Bot {
 			yVals[0] = a2 - acceleration;
 			acceleration = a2;
 			friction = (2 * acceleration - a2) / Math.Pow(acceleration, 2);
-			Console.WriteLine("friction coefficent : "+friction);
 			return new Throttle(1.0, currentGameTick);
 		}else if(currentGameTick < 6){ //Method of a 'strong and stupid',collect data and use linear regression to deternime acceleration.
 			double a = myCar.speed;
@@ -367,11 +364,6 @@ public class Bot {
 			LinearRegression();
 		}
 		
-		
-		double myCarAngle = myCar.angle;
-		if(myCarAngle < 0){
-			myCarAngle = -myCarAngle;
-		}
 		if(currentTrack.GetNextPiece(myCar).@switch){
 			if(!switchSent){
 				switchSent = true;
@@ -384,7 +376,7 @@ public class Bot {
 		
 		if (currentTrack.pieces [myCar.piecePosition.pieceIndex].angle != 0) {
 			Console.WriteLine("Car angle: "+myCar.angle);
-			Console.WriteLine("Guessed angle: "+GuessSlipAngle());
+			//Console.WriteLine("Guessed angle: "+GuessSlipAngle());
 			if(myCar.speed > GetMaxEntrySpeed(currentTrack.pieces[myCar.piecePosition.pieceIndex])){
 				throttle = 0.0;
 			}else{
@@ -451,7 +443,7 @@ public class Bot {
 					CarPositions carPositions = JsonConvert.DeserializeObject<CarPositions>(line);
 					UpdateCarPositions(carPositions.data);
 					currentGameTick = carPositions.gameTick;
-					Console.WriteLine("Car startlaneindex:"+myCar.piecePosition.lane.startLaneIndex+" Car endlaneIndex:"+myCar.piecePosition.lane.endLaneIndex+" Current tick: "+carPositions.gameTick+ " Speed: "+myCar.speed);
+					//Console.WriteLine("Car startlaneindex:"+myCar.piecePosition.lane.startLaneIndex+" Car endlaneIndex:"+myCar.piecePosition.lane.endLaneIndex+" Current tick: "+carPositions.gameTick+ " Speed: "+myCar.speed);
 					send(DetermineAction());
 					previousAngle = myCar.angle;
 					if(previousAngle < 0){
@@ -466,6 +458,7 @@ public class Bot {
 					CrashMsg crashMsg = JsonConvert.DeserializeObject<CrashMsg>(line);
 					if(myCar.HasId(crashMsg.data)){ //Houston we have crashed...
 						Console.WriteLine("#######CRASH!!##############");
+						Console.WriteLine("Speed: "+myCar.speed);
 						Console.WriteLine("############################");
 					}
 					break;
