@@ -20,7 +20,7 @@ public class Bot {
 			writer.AutoFlush = true;
 
 			new Bot(reader, writer, new Join(botName, botKey));
-			//new Bot(reader, writer, new JoinRace(botName, botKey, "france"));
+			//new Bot(reader, writer, new JoinRace(botName, botKey, "germany"));
 		}
 	}
 
@@ -28,13 +28,9 @@ public class Bot {
 	private Track currentTrack;
 	private Car myCar;
 	private Cars otherCars;
-	private double limitSpeed = 9;
-	private double deceleration = 0;
-	private Corners trackCorners;
+	//private Corners trackCorners;
 	private double throttle = 0;
 	private double prevThrottle = 0;
-	private double startSpeed;
-	private double startDist;
     private int currentGameTick;
 	private double acceleration;
 	private double friction;
@@ -62,39 +58,6 @@ public class Bot {
 				}
 			}
 		}
-	}
-	
-	private SendMsg GetDeceleration(){/*
-		if(myCar.speed == 0){
-			throttle = 1;
-			return new Throttle(1.0);
-		} else {
-			if(throttle == 0){
-				double speedLowered = startSpeed - myCar.speed;
-				double distanceTraveled = myCar.piecePosition.inPieceDistance - startDist;
-				Console.WriteLine("Start speed: "+startSpeed);
-				Console.WriteLine("Current speed: "+myCar.speed);
-				Console.WriteLine("Start distance: "+startDist);
-				Console.WriteLine("Distance traveled: "+distanceTraveled);
-				Console.WriteLine("Speed lowered: "+speedLowered);
-				Console.WriteLine("End distance: "+myCar.piecePosition.inPieceDistance);
-				Console.WriteLine("End speed: "+myCar.speed);
-				deceleration = speedLowered / distanceTraveled;
-				Console.WriteLine ("Deceleration: "+deceleration);
-				return new Throttle(1.0);
-			}else{
-				if(myCar.speed < 1){
-					return new Throttle(1);
-				}else{					
-					startSpeed = myCar.speed;
-					startDist = myCar.piecePosition.inPieceDistance;
-					throttle = 0;
-					return new Throttle(0);
-				}
-			}
-		}*/
-		deceleration = 0.0204081632653056;
-		return new Throttle(1, currentGameTick);
 	}
 	
 	
@@ -152,19 +115,47 @@ public class Bot {
 		return track;
 	}
 	
+	private Double GetLengthOfTurn(Car car, Piece piece){
+		double totalradius = 0;
+		if(piece.angle > 0){
+			totalradius = piece.radius - currentTrack.lanes[car.piecePosition.lane.startLaneIndex].distanceFromCenter;
+		}else{
+			totalradius = piece.radius + currentTrack.lanes[car.piecePosition.lane.startLaneIndex].distanceFromCenter;
+		}
+		double sectorLength = piece.angle / 360 * 2 * Math.PI * totalradius;
+		if(sectorLength < 0){
+			sectorLength = -sectorLength;
+		}
+		Console.WriteLine("sector:"+sectorLength);
+		return sectorLength;
+		
+	}
+	
 	private Double GetDistanceUntilPiece(Piece p){
 		double dist = 0;
 		if(myCar.piecePosition.pieceIndex < p.index){
 			for(int i = myCar.piecePosition.pieceIndex;i < p.index;i++){
-				dist += currentTrack.pieces[i].length;
+				if(currentTrack.pieces[i].angle != 0){
+					dist += GetLengthOfTurn(myCar,currentTrack.pieces[i]);
+				}else{
+					dist += currentTrack.pieces[i].length;
+				}
 			}
 		
 		}else{
 			for(int i = myCar.piecePosition.pieceIndex; i < currentTrack.pieces.Count;i++){
-				dist += currentTrack.pieces[i].length;
+				if(currentTrack.pieces[i].angle != 0){
+					dist += GetLengthOfTurn(myCar,currentTrack.pieces[i]);
+				}else{
+					dist += currentTrack.pieces[i].length;
+				}
 			}
 			for(int j = 0; j < p.index;j++){
-				dist += currentTrack.pieces[j].length;
+				if(currentTrack.pieces[j].angle != 0){
+					dist += GetLengthOfTurn(myCar,currentTrack.pieces[j]);
+				}else{
+					dist += currentTrack.pieces[j].length;
+				}
 			}
 		}
 		return dist - myCar.piecePosition.inPieceDistance;
@@ -226,16 +217,35 @@ public class Bot {
 			totalradius = currentTrack.pieces[myCar.piecePosition.pieceIndex].radius + currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
 		}
 		//Console.WriteLine(myCar.angularForce);
-		return Math.Sqrt((0.43 * GuessSlipAngle () * totalradius) / 60 );
+		double maxspeed = Math.Sqrt((0.43 * GuessSlipAngle () * totalradius) / 60 );
+		if(ConnectedTurn() != null){
+			double nextEntrySpeed = GetMaxEntrySpeed(ConnectedTurn());
+			if(NeedToBreak(nextEntrySpeed, ConnectedTurn())){
+				return 0.0;
+			}
+		}
+		return maxspeed;
 	}
-
-	private Double GetMaxEntrySpeed ()
+	
+	private Piece ConnectedTurn(){
+		double currentAngle = currentTrack.pieces[myCar.piecePosition.pieceIndex].angle;
+		int currentIndex = currentTrack.pieces[myCar.piecePosition.pieceIndex].index;
+		while(currentTrack.pieces[currentIndex].angle != 0){
+			if(currentTrack.pieces[currentIndex].angle != currentAngle){
+				return currentTrack.pieces[currentIndex];
+			}
+			currentIndex++;
+		}
+		return null;
+	}
+	
+	private Double GetMaxEntrySpeed (Piece p)
 	{
 		double totalradius = 0;
-		if(currentTrack.pieces[GetNextTurn(myCar)].angle > 0){
-			totalradius = currentTrack.pieces[GetNextTurn(myCar)].radius - currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
+		if(p.angle > 0){
+			totalradius = p.radius - currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
 		}else{
-			totalradius = currentTrack.pieces[GetNextTurn(myCar)].radius + currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
+			totalradius = p.radius + currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
 		}
 		return Math.Sqrt (0.45 * totalradius);
 	}
@@ -254,8 +264,9 @@ public class Bot {
 		return speedAfterTicks;
 	}
 	
-	private bool NeedToBreak(double reqSpeed){
-		double distanceUntilTurn = GetDistanceUntilPiece(currentTrack.pieces[GetNextTurn(myCar)]);
+	private bool NeedToBreak(double reqSpeed, Piece p){
+		double distanceUntilTurn = GetDistanceUntilPiece(p);
+		Console.WriteLine("distance until turn:"+distanceUntilTurn);
 		int ticksUntilTurn = Convert.ToInt32(distanceUntilTurn / myCar.speed);
 		if(SpeedAfterNTicks(ticksUntilTurn, 0.0, myCar.speed) > reqSpeed){
 			return true;
@@ -274,7 +285,7 @@ public class Bot {
 			speedAfterTicks = nextTickSpeedTurbo(turboDetails.turboFactor, speedAfterTicks);
 		}
 		double speedAfterBreaking = SpeedAfterNTicks(ticksUntilTurn - turboDetails.turboDurationTicks,0.0,speedAfterTicks);
-		if(speedAfterBreaking < GetMaxEntrySpeed()){
+		if(speedAfterBreaking < GetMaxEntrySpeed(currentTrack.pieces[GetNextTurn(myCar)])){
 			return true;
 		}else{
 			return false;
@@ -329,108 +340,6 @@ public class Bot {
 	
 	private SendMsg DetermineAction ()
 	{
-
-		/*
-		if(myCar.piecePosition.pieceIndex > 1 && myCar.piecePosition.pieceIndex < 4 && myCar.piecePosition.lane.startLaneIndex == 0 && myCar.piecePosition.lane.endLaneIndex == 0){
-			if(currentTrack.GetNextPiece(myCar).@switch){
-				return new SwitchLane("Right");
-			}
-		}
-		if(myCar.piecePosition.pieceIndex > 4 && myCar.piecePosition.pieceIndex < 10 && myCar.piecePosition.lane.startLaneIndex == 1 && myCar.piecePosition.lane.endLaneIndex == 1){
-			if(currentTrack.GetNextPiece(myCar).@switch){
-				return new SwitchLane("Left");
-			}
-		}
-		if(myCar.piecePosition.pieceIndex > 15 && myCar.piecePosition.pieceIndex < 21 && myCar.piecePosition.lane.startLaneIndex == 0 && myCar.piecePosition.lane.endLaneIndex == 0){
-			if(currentTrack.GetNextPiece(myCar).@switch){
-				return new SwitchLane("Right");
-			}
-		}
-		
-		/*if(currentTrack.GetNextPiece(myCar).angle == 0){ //If next piece is straight, full throttle
-			return new Throttle(1.0);
-		}
-		else {
-			Piece nextPiece = currentTrack.GetNextPiece(myCar);
-			Piece secondNextPiece = currentTrack.GetNextPieceX(myCar,2);
-			Piece thirdNextPiece = currentTrack.GetNextPieceX(myCar,3);
-			if((nextPiece.angle > 30 || nextPiece.angle < -30 || secondNextPiece.angle > 30 || secondNextPiece.angle < -30 || thirdNextPiece.angle > 30 || thirdNextPiece.angle < -30)){ //if we have tight curve ahead, slow down
-				Corner nextCorner = trackCorners.GetCornerByPiece(nextPiece);
-				if(myCar.speed < 1.0/*(limitSpeed / (nextCorner.angle / nextCorner.maxRadius))) {
-			/*		return new Throttle(1.0);
-				} else {
-					return new Throttle(0.1);
-				}
-			}
-			return new Throttle(1.0); //slow only to tight curves
-		}*/
-		/*
-		if(currentTrack.pieces[myCar.piecePosition.pieceIndex].angle != 0){
-			Corner currentCorner = trackCorners.GetCornerByPiece(currentTrack.pieces[myCar.piecePosition.pieceIndex]);
-			if(currentCorner == null){
-				//Console.WriteLine("null");
-				return new Throttle(1.0);
-			}
-			
-			double pieceLimitSpeed; //= limitSpeed / (currentCorner.angle / currentCorner.minRadius);
-			if(GetLearnedDataById(currentCorner.cornerIndex) != null){
-				pieceLimitSpeed = GetLearnedDataById(currentCorner.cornerIndex).maxspeed;
-			}
-			else{
-				pieceLimitSpeed = 10;
-			}
-			if(pieceLimitSpeed < 0){
-				pieceLimitSpeed = -pieceLimitSpeed;
-			}
-			Piece nextPiece = currentTrack.GetNextPiece(myCar);
-			//Console.WriteLine("this piece limit"+pieceLimitSpeed);
-			if(myCar.speed < pieceLimitSpeed || (nextPiece.angle < 30 && nextPiece.angle > -30)){
-				return new Throttle(1.0);
-			}else{
-				return new Throttle(0.0);
-			}
-		
-		}else{		
-			Corner nextCorner = trackCorners.GetNextCorner(myCar);
-			//double nextCornerLength = nextCorner.angle * Math.PI * nextCorner.minRadius;
-			double nextCornerEntrySpeed;//limitSpeed / (nextCorner.angle / nextCorner.minRadius);
-			if(GetLearnedDataById(nextCorner.cornerIndex) != null){
-				nextCornerEntrySpeed = GetLearnedDataById(nextCorner.cornerIndex).maxspeed;
-			}else{
-				nextCornerEntrySpeed = 10;
-			}
-			if(nextCornerEntrySpeed < 0){
-				nextCornerEntrySpeed = -nextCornerEntrySpeed;
-			}
-			
-			double speedAfterBreaking = myCar.speed - (GetDistanceUntilPiece(nextCorner.pieces[0]) * deceleration);
-			//Console.WriteLine("next corner limit"+nextCornerEntrySpeed);
-			if(speedAfterBreaking > nextCornerEntrySpeed){
-				return new Throttle(0.0);
-			}else{
-				return new Throttle(1.0);
-			}
-		}
-		
-		*/
-		/*Piece current = currentTrack.pieces [myCar.piecePosition.pieceIndex];
-		if (currentTrack.pieces [myCar.piecePosition.pieceIndex].angle != 0) {
-
-			using (System.IO.StreamWriter file = new System.IO.StreamWriter("./angle.txt", true))
-        				{
-							double totalradius;
-							if(currentTrack.pieces[myCar.piecePosition.pieceIndex].angle > 0){
-								totalradius = currentTrack.pieces[myCar.piecePosition.pieceIndex].radius - currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
-							}else{
-								totalradius = currentTrack.pieces[myCar.piecePosition.pieceIndex].radius + currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
-							}
-				if(myCar.speed > 0){
-           					file.WriteLine(myCar.angle+" , "+GuessSlipAngle()+" , "+current.angle+" , "+totalradius+" , "+myCar.speed);
-							Console.WriteLine(myCar.angle+" , "+GuessSlipAngle()+" , "+current.angle+" , "+totalradius+" , "+myCar.speed);
-				}
-        				}
-		}*/
-		//Console.WriteLine(GetMaxSpeed()+" , "+GetMaxEntrySpeed()+" "+GetDistanceUntilPiece(currentTrack.pieces[GetNextTurn(myCar)]));
 		if(currentGameTick == 0){
 			return new Throttle(1.0, currentGameTick);
 		}else if(currentGameTick == 1){
@@ -472,10 +381,15 @@ public class Bot {
 		if (currentTrack.pieces [myCar.piecePosition.pieceIndex].angle != 0) {
 			Console.WriteLine("Car angle: "+myCar.angle);
 			Console.WriteLine("Guessed angle: "+GuessSlipAngle());
-			if(myCar.speed > GetMaxEntrySpeed()){
+			if(myCar.speed > GetMaxEntrySpeed(currentTrack.pieces[myCar.piecePosition.pieceIndex])){
 				throttle = 0.0;
 			}else{
-				throttle = GetMaxSpeed()/10;
+				double maxTurnVelocity = GetMaxSpeed();
+				if(maxTurnVelocity == 0.0){
+					throttle = 0.0;
+					return new Throttle(throttle, currentGameTick);
+				}
+				throttle = maxTurnVelocity/10;
 				if((myCarAngle < previousAngle + 3) && myCarAngle < 45){
 					throttle = 1.0;
 				}
@@ -495,8 +409,8 @@ public class Bot {
 				}
 			}
 			
-			Double entryspeed = GetMaxEntrySpeed();
-			if(NeedToBreak(entryspeed)){
+			Double entryspeed = GetMaxEntrySpeed(currentTrack.pieces[GetNextTurn(myCar)]);
+			if(NeedToBreak(entryspeed, currentTrack.pieces[GetNextTurn(myCar)])){
 				if(entryspeed < 0){
 					throttle = 1.0;
 					return new Throttle(throttle, currentGameTick);
@@ -557,7 +471,6 @@ public class Bot {
 					currentTrack = CreateTrack(gameInit);
 					otherCars = new Cars(gameInit.data.race.cars);
 					otherCars.cars.Remove(otherCars.GetCarById(myCar.id));
-					trackCorners = GetTrackCorners(currentTrack);
 					break;
 				case "gameEnd":
 					Console.WriteLine("Race ended");
