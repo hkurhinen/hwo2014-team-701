@@ -19,8 +19,8 @@ public class Bot {
 			StreamWriter writer = new StreamWriter(stream);
 			writer.AutoFlush = true;
 
-			new Bot(reader, writer, new Join(botName, botKey));
-			//new Bot(reader, writer, new JoinRace(botName, botKey, "france"));
+			//new Bot(reader, writer, new Join(botName, botKey));
+			new Bot(reader, writer, new JoinRace(botName, botKey, "france"));
 		}
 	}
 
@@ -32,12 +32,16 @@ public class Bot {
 	private double deceleration = 0;
 	private Corners trackCorners;
 	private double throttle = 0;
+	private double prevThrottle = 0;
 	private double startSpeed;
 	private double startDist;
     private int currentGameTick;
 	private double acceleration;
 	private double friction;
-	
+	private double previousAngle = 0;
+	private bool switchSent = false;
+	private bool turboAvailable = false;
+	private TurboDetails turboDetails;
 	/**LINEAR REGRESSION VALUES**/
 	private double[] xVals = new double[4];
 	private double[] yVals = new double[4];
@@ -180,10 +184,10 @@ public class Bot {
 			}
 		}
 		if (totalangle > 0) {
-			Console.WriteLine ("WANNA SWITCH LEFT!!");
+			//Console.WriteLine ("WANNA SWITCH LEFT!!");
 			return "Left";
 		} else {
-			Console.WriteLine ("WANNA SWITCH RIGHT!!");
+			//Console.WriteLine ("WANNA SWITCH RIGHT!!");
 			return "Right";
 		}
 	}
@@ -203,10 +207,14 @@ public class Bot {
 
 	private Double GuessSlipAngle ()
 	{
-		//if (currentTrack.pieces[myCar.piecePosition.pieceIndex].angle < 0) {
+		/*if (currentTrack.pieces[myCar.piecePosition.pieceIndex].angle < 0) {
 			//return -(myCar.angularForce * 60 * 2);
-		//}
+		
+		x = (c + (c^2 - 4*k)^(1/2))/(2*exp(t*(c/2 - (c^2 - 4*k)^(1/2)/2))*(c^2 - 4*k)^(1/2)) - (c - (c^2 - 4*k)^(1/2))/(2*exp(t*(c/2 + (c^2 - 4*k)^(1/2)/2))*(c^2 - 4*k)^(1/2))
+																														
+		}*/
 		return myCar.angularForce * 60 * 2;
+
 	}
 
 	private Double GetMaxSpeed ()
@@ -229,7 +237,7 @@ public class Bot {
 		}else{
 			totalradius = currentTrack.pieces[GetNextTurn(myCar)].radius + currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
 		}
-		return Math.Sqrt (0.5 * totalradius);
+		return Math.Sqrt (0.45 * totalradius);
 	}
 	
 	private Double SpeedLostPerTick(){
@@ -237,26 +245,52 @@ public class Bot {
 	}
 	
 	
-	private double SpeedAfterNTicks(int ticks, double throttle){
-		double speedAfterTicks = myCar.speed;
+	private double SpeedAfterNTicks(int ticks, double throttle, double startingSpeed){
+		double speedAfterTicks = startingSpeed;
 		for(int i = 0; i < ticks;i++){
 			speedAfterTicks = NextTickSpeed(throttle, speedAfterTicks);
 		}
+		Console.WriteLine("speed after straight: "+speedAfterTicks);
 		return speedAfterTicks;
 	}
 	
 	private bool NeedToBreak(double reqSpeed){
 		double distanceUntilTurn = GetDistanceUntilPiece(currentTrack.pieces[GetNextTurn(myCar)]);
 		int ticksUntilTurn = Convert.ToInt32(distanceUntilTurn / myCar.speed);
-		if(SpeedAfterNTicks(ticksUntilTurn, 0.0) > reqSpeed){
+		if(SpeedAfterNTicks(ticksUntilTurn, 0.0, myCar.speed) > reqSpeed){
 			return true;
 		}
 		return false;
 	}
 	
+	private bool CanUseTurbo(){
+		double distanceUntilTurn = GetDistanceUntilPiece(currentTrack.pieces[GetNextTurn(myCar)]);
+		int ticksUntilTurn = Convert.ToInt32(distanceUntilTurn / myCar.speed);
+		if(ticksUntilTurn < turboDetails.turboDurationTicks){
+			return false;
+		}
+		double speedAfterTicks = myCar.speed;
+		for(int i = 0; i < turboDetails.turboDurationTicks;i++){
+			speedAfterTicks = nextTickSpeedTurbo(turboDetails.turboFactor, speedAfterTicks);
+		}
+		double speedAfterBreaking = SpeedAfterNTicks(ticksUntilTurn - turboDetails.turboDurationTicks,0.0,speedAfterTicks);
+		if(speedAfterBreaking < GetMaxEntrySpeed()){
+			return true;
+		}else{
+			return false;
+		}
+		
+	}
+	
+	
+	private double nextTickSpeedTurbo(double turboFactor, double previousSpeed){
+		double speendIncreased = previousSpeed * slope + yintercept;
+		return previousSpeed + (turboFactor * speendIncreased);
+	}
+	
 	private double NextTickSpeed(double throttle, double previousSpeed){
 		double speendIncreased = previousSpeed * slope + (throttle * yintercept);
-		return myCar.speed + speendIncreased;
+		return previousSpeed + speendIncreased;
 	}
 	
 	private void LinearRegression(){
@@ -295,7 +329,7 @@ public class Bot {
 	
 	private SendMsg DetermineAction ()
 	{
-		GetNextSwitch(myCar);
+
 		/*
 		if(myCar.piecePosition.pieceIndex > 1 && myCar.piecePosition.pieceIndex < 4 && myCar.piecePosition.lane.startLaneIndex == 0 && myCar.piecePosition.lane.endLaneIndex == 0){
 			if(currentTrack.GetNextPiece(myCar).@switch){
@@ -421,26 +455,63 @@ public class Bot {
 		}
 		
 		
+		double myCarAngle = myCar.angle;
+		if(myCarAngle < 0){
+			myCarAngle = -myCarAngle;
+		}
+		if(currentTrack.GetNextPiece(myCar).@switch){
+			if(!switchSent){
+				switchSent = true;
+				return new SwitchLane(GetNextSwitch(myCar), currentGameTick);
+			}
+		}else{
+			switchSent = false;
+		}
+		
+		
 		if (currentTrack.pieces [myCar.piecePosition.pieceIndex].angle != 0) {
-			//return new Throttle(0.6);
+			Console.WriteLine("Car angle: "+myCar.angle);
+			Console.WriteLine("Guessed angle: "+GuessSlipAngle());
 			if(myCar.speed > GetMaxEntrySpeed()){
-				return new Throttle(0.0, currentGameTick);
+				throttle = 0.0;
 			}else{
-				return new Throttle(GetMaxSpeed()/10, currentGameTick);
+				throttle = GetMaxSpeed()/10;
+				if((myCarAngle < previousAngle + 3) && myCarAngle < 45){
+					throttle = 1.0;
+				}
+				if(myCarAngle > 55 || (myCarAngle > 45 && myCarAngle > previousAngle + 3)){
+					throttle = 0.0;
+				}
+				if(myCarAngle < previousAngle){
+					throttle = 1.0;
+				}
 			}
 		} else {
+			
+			if(turboAvailable){
+				if(CanUseTurbo()){
+					turboAvailable = false;
+					return new UseTurbo(currentGameTick);
+				}
+			}
+			
 			Double entryspeed = GetMaxEntrySpeed();
 			if(NeedToBreak(entryspeed)){
 				if(entryspeed < 0){
-					return new Throttle(1.0, currentGameTick);
+					throttle = 1.0;
+					return new Throttle(throttle, currentGameTick);
 				}
-				return new Throttle(0.0, currentGameTick);
+				throttle = 0.0;
 			}else{
-				return new Throttle(1.0, currentGameTick);
+				throttle = 1.0;
 			}
 		}
-
-
+		
+		if(throttle > 1.0){
+			throttle = 1.0;
+		}
+		
+		return new Throttle(throttle, currentGameTick);
 
 	}
 
@@ -464,6 +535,11 @@ public class Bot {
 					currentGameTick = carPositions.gameTick;
 					Console.WriteLine("Car startlaneindex:"+myCar.piecePosition.lane.startLaneIndex+" Car endlaneIndex:"+myCar.piecePosition.lane.endLaneIndex+" Current tick: "+carPositions.gameTick+ " Speed: "+myCar.speed);
 					send(DetermineAction());
+					previousAngle = myCar.angle;
+					if(previousAngle < 0){
+						previousAngle = -previousAngle;
+					}
+					prevThrottle = throttle;
 					break;
 				case "join":
 					Console.WriteLine("Joined");
@@ -490,6 +566,12 @@ public class Bot {
 					Console.WriteLine("Race starts");
 					currentGameTick = 0;
 					send(new Ping());
+					break;
+				case "turboAvailable":
+					turboAvailable = true;
+					Turbo turbo = JsonConvert.DeserializeObject<Turbo>(line);
+					turboDetails = turbo.data;
+					currentGameTick = turbo.gameTick;
 					break;
 				default:
 					Console.WriteLine(line);
@@ -809,6 +891,19 @@ public class BotId
     public string key { get; set; }
 }
 
+public class TurboDetails
+{
+    public double turboDurationMilliseconds { get; set; }
+    public int turboDurationTicks { get; set; }
+    public double turboFactor { get; set; }
+}
+
+public class Turbo
+{
+    public string msgType { get; set; }
+    public TurboDetails data { get; set; }
+    public int gameTick { get; set; }
+}
 
 /******* MESSAGES TO SERVER **********/
 
@@ -877,11 +972,27 @@ class Throttle: SendMsg {
 	
 }
 
+class UseTurbo: SendMsg {
+	
+	public UseTurbo(int gameTick){
+		this.gameTick = gameTick;
+	}
+	
+	protected override Object MsgData() {
+		return "Kolmosen kautta nelosen puhaltimella...";
+	}
+	
+	protected override string MsgType() {
+		return "turbo";
+	}
+}
+
 class SwitchLane: SendMsg {
 	public string lane;
 
-	public SwitchLane(string lane){
+	public SwitchLane(string lane, int gameTick){
 		this.lane = lane;
+		this.gameTick = gameTick;
 	}
 
 	protected override Object MsgData() {
