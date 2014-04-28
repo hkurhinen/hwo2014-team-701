@@ -19,8 +19,8 @@ public class Bot {
 			StreamWriter writer = new StreamWriter(stream);
 			writer.AutoFlush = true;
 
-			//new Bot(reader, writer, new Join(botName, botKey));
-			new Bot(reader, writer, new JoinRace(botName, botKey, "germany"));
+			new Bot(reader, writer, new Join(botName, botKey));
+			//new Bot(reader, writer, new JoinRace(botName, botKey, "germany"));
 		}
 	}
 
