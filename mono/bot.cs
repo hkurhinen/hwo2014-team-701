@@ -165,6 +165,18 @@ public class Bot {
 
 	private string GetNextSwitch (Car car)
 	{
+		foreach(Car otherCar in otherCars.cars){
+			if(otherCar.piecePosition.pieceIndex == car.piecePosition.pieceIndex && otherCar.speed < myCar.speed && otherCar.piecePosition.lane.startLaneIndex == car.piecePosition.lane.startLaneIndex){
+				if(otherCar.piecePosition.lane.startLaneIndex != otherCar.piecePosition.lane.endLaneIndex){ //if the other car is chaging, don't change.
+					return "noswitch";
+				}
+				if(car.piecePosition.lane.startLaneIndex > 0 ){
+					return "Left";
+				}else{
+					return "Right";
+				}
+			}
+		}
 		//int i = car.piecePosition.pieceIndex;
 		int j = 2;
 		//Piece upcomingSwitch = currentTrack.GetNextPiece(car);
@@ -379,7 +391,10 @@ public class Bot {
 		if(currentTrack.GetNextPiece(myCar).@switch){
 			if(!switchSent){
 				switchSent = true;
-				return new SwitchLane(GetNextSwitch(myCar), currentGameTick);
+				String switchDir = GetNextSwitch(myCar);
+				if(!switchDir.Equals("noswitch")){
+					return new SwitchLane(switchDir, currentGameTick);
+				}
 			}
 		}else{
 			switchSent = false;
@@ -440,7 +455,7 @@ public class Bot {
 	Bot(StreamReader reader, StreamWriter writer, SendMsg join) {
 		this.writer = writer;
 		string line;
-
+		
 		send(join);
 
 		while((line = reader.ReadLine()) != null) {
@@ -498,20 +513,23 @@ public class Bot {
 					currentGameTick = turbo.gameTick;
 					break;
 				case "lapFinished":
-					if(lapMaxAngle < 10){
-						constant = constant * 1.4;
-						maxSpeedMultiplier = constant * friction;
-					}else if(lapMaxAngle < 20){
-						constant = constant * 1.3;
-						maxSpeedMultiplier = constant * friction;
-					}else if(lapMaxAngle < 30){
-						constant = constant * 1.2;
-						maxSpeedMultiplier = constant * friction;
-					}else if(lapMaxAngle < 50){
-						constant = constant * 1.1;
-						maxSpeedMultiplier = constant * friction;
+					LapFinished lapFinished = JsonConvert.DeserializeObject<LapFinished>(line);
+					if(myCar.HasId(lapFinished.data.car)){
+						if(lapMaxAngle < 10){
+							constant = constant * 1.4;
+							maxSpeedMultiplier = constant * friction;
+						}else if(lapMaxAngle < 20){
+							constant = constant * 1.3;
+							maxSpeedMultiplier = constant * friction;
+						}else if(lapMaxAngle < 30){
+							constant = constant * 1.2;
+							maxSpeedMultiplier = constant * friction;
+						}else if(lapMaxAngle < 50){
+							constant = constant * 1.1;
+							maxSpeedMultiplier = constant * friction;
+						}
+						Console.WriteLine("Lap finished, new spdmulti: "+maxSpeedMultiplier);
 					}
-					Console.WriteLine("Lap finished, new spdmulti: "+maxSpeedMultiplier);
 					break;
 				default:
 					Console.WriteLine(line);
@@ -727,6 +745,43 @@ public class GameInit
     public string msgType { get; set; }
     public Data data { get; set; }
 }
+/******LAP FINISHED*******/
+public class LapTime
+{
+    public int lap { get; set; }
+    public int ticks { get; set; }
+    public int millis { get; set; }
+}
+
+public class RaceTime
+{
+    public int laps { get; set; }
+    public int ticks { get; set; }
+    public int millis { get; set; }
+}
+
+public class Ranking
+{
+    public int overall { get; set; }
+    public int fastestLap { get; set; }
+}
+
+public class LapData
+{
+    public Id car { get; set; }
+    public LapTime lapTime { get; set; }
+    public RaceTime raceTime { get; set; }
+    public Ranking ranking { get; set; }
+}
+
+public class LapFinished
+{
+    public string msgType { get; set; }
+    public LapData data { get; set; }
+    public string gameId { get; set; }
+    public int gameTick { get; set; }
+}
+
 
 /******CAR POSITIONS*****/
 public class CarCurrentLane
