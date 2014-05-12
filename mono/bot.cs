@@ -275,6 +275,9 @@ public class Bot {
 	}
 	
 	private bool CanUseTurbo(){
+		if(myCar.speed == 0){
+			return false;
+		}
 		double distanceUntilTurn = GetDistanceUntilPiece(currentTrack.pieces[GetNextTurn(myCar)]);
 		int ticksUntilTurn = Convert.ToInt32(distanceUntilTurn / myCar.speed);
 		if(ticksUntilTurn < turboDetails.turboDurationTicks){
