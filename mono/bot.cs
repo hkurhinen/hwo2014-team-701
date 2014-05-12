@@ -20,7 +20,7 @@ public class Bot {
 			writer.AutoFlush = true;
 
 			new Bot(reader, writer, new Join(botName, botKey));
-			//new Bot(reader, writer, new JoinRace(botName, botKey, "germany"));
+			//new Bot(reader, writer, new JoinRace(botName, botKey, "imola"));
 		}
 	}
 
@@ -38,6 +38,9 @@ public class Bot {
 	private bool switchSent = false;
 	private bool turboAvailable = false;
 	private TurboDetails turboDetails;
+	private double lapMaxAngle = 0;
+	private double maxSpeedMultiplier;
+	private double constant = 0.13;
 	/**LINEAR REGRESSION VALUES**/
 	private double[] xVals = new double[4];
 	private double[] yVals = new double[4];
@@ -212,7 +215,7 @@ public class Bot {
 		}else{
 			totalradius = currentTrack.pieces[myCar.piecePosition.pieceIndex].radius + currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
 		}
-		double maxspeed = Math.Sqrt(0.45 * totalradius);
+		double maxspeed = Math.Sqrt(maxSpeedMultiplier * totalradius);
 		if(ConnectedTurn() != null){
 			double nextEntrySpeed = GetMaxEntrySpeed(ConnectedTurn());
 			if(NeedToBreak(nextEntrySpeed, ConnectedTurn())){
@@ -242,7 +245,7 @@ public class Bot {
 		}else{
 			totalradius = p.radius + currentTrack.lanes[myCar.piecePosition.lane.startLaneIndex].distanceFromCenter;
 		}
-		return Math.Sqrt (0.45 * totalradius);
+		return Math.Sqrt (maxSpeedMultiplier * totalradius);
 	}
 	
 	private Double SpeedLostPerTick(){
@@ -342,6 +345,10 @@ public class Bot {
 			myCarAngle = -myCarAngle;
 		}
 		
+		if(myCarAngle > lapMaxAngle){
+			lapMaxAngle = myCarAngle;
+		}
+		
 		if(currentGameTick == 0){
 			return new Throttle(1.0, currentGameTick);
 		}else if(currentGameTick == 1){
@@ -353,6 +360,8 @@ public class Bot {
 			yVals[0] = a2 - acceleration;
 			acceleration = a2;
 			friction = (2 * acceleration - a2) / Math.Pow(acceleration, 2);
+			maxSpeedMultiplier = constant * friction;
+			Console.WriteLine("friction: "+friction+" spdmulti: "+maxSpeedMultiplier);
 			return new Throttle(1.0, currentGameTick);
 		}else if(currentGameTick < 6){ //Method of a 'strong and stupid',collect data and use linear regression to deternime acceleration.
 			double a = myCar.speed;
@@ -457,6 +466,8 @@ public class Bot {
 				case "crash":
 					CrashMsg crashMsg = JsonConvert.DeserializeObject<CrashMsg>(line);
 					if(myCar.HasId(crashMsg.data)){ //Houston we have crashed...
+						constant = constant * 0.9;
+						maxSpeedMultiplier = constant * friction;
 						Console.WriteLine("#######CRASH!!##############");
 						Console.WriteLine("Speed: "+myCar.speed);
 						Console.WriteLine("############################");
@@ -482,6 +493,22 @@ public class Bot {
 					Turbo turbo = JsonConvert.DeserializeObject<Turbo>(line);
 					turboDetails = turbo.data;
 					currentGameTick = turbo.gameTick;
+					break;
+				case "lapFinished":
+					if(lapMaxAngle < 10){
+						constant = constant * 1.4;
+						maxSpeedMultiplier = constant * friction;
+					}else if(lapMaxAngle < 20){
+						constant = constant * 1.3;
+						maxSpeedMultiplier = constant * friction;
+					}else if(lapMaxAngle < 30){
+						constant = constant * 1.2;
+						maxSpeedMultiplier = constant * friction;
+					}else if(lapMaxAngle < 50){
+						constant = constant * 1.1;
+						maxSpeedMultiplier = constant * friction;
+					}
+					Console.WriteLine("Lap finished, new spdmulti: "+maxSpeedMultiplier);
 					break;
 				default:
 					Console.WriteLine(line);
